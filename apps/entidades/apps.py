@@ -2,4 +2,6 @@ from django.apps import AppConfig
 
 
 class EntidadesConfig(AppConfig):
-    name = 'entidades'
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.entidades'
+    verbose_name = 'Entidades'
