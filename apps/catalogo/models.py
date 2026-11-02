@@ -26,10 +26,9 @@ class Articulo(models.Model):
     stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     stock_critico = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
-    # Costos
-    pmp_costo_actual = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="Precio Medio Ponderado")
-    ultimo_costo_compra = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    # Costos (ahora como enteros)
+    pmp_costo_actual = models.IntegerField(default=0, verbose_name="Precio Medio Ponderado")
+    ultimo_costo_compra = models.IntegerField(default=0, verbose_name="Último Costo de Compra")
 
     def __str__(self):
         return f"[{self.codigo_interno}] {self.nombre}"
-    
