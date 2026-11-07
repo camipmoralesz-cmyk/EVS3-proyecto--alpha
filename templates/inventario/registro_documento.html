@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+
+{% block title %}HU-01: Ingreso de Materiales por Documento{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h3 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-file-earmark-arrow-down-fill text-primary me-2"></i>
+                    Ingreso de Materiales por Documento
+                </h3>
+                <p class="text-muted small mb-0">
+                    Historia de Usuario <strong>HU-01</strong> — Rol: <em>Encargado de Bodega y Logística</em>
+                </p>
+            </div>
+            <div>
+                <a href="{% url 'inventario_stock' %}" class="btn btn-outline-secondary btn-sm me-1">
+                    <i class="bi bi-boxes me-1"></i> Ver Stock Actual
+                </a>
+                <a href="{% url 'lista_documentos' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-list-check me-1"></i> Historial de Documentos
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="formIngresoDocumento" method="post" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="lineas_json" id="lineas_json">
+
+    <!-- Tarjeta Encabezado del Documento -->
+    <div class="card card-custom mb-4">
+        <div class="card-header bg-white py-3 border-bottom">
+            <h5 class="card-title mb-0 fw-semibold text-primary">
+                <i class="bi bi-info-circle me-1"></i> 1. Datos del Encabezado del Documento
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label for="proveedor" class="form-label fw-bold mb-0">Proveedor *</label>
+                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-bs-toggle="modal" data-bs-target="#modalNuevoProveedor">
+                            <i class="bi bi-plus-circle me-1"></i>+ Nuevo Proveedor
+                        </button>
+                    </div>
+                    <select name="proveedor" id="proveedor" class="form-select" required>
+                        <option value="">-- Seleccionar Proveedor --</option>
+                        {% for prov in proveedores %}
+                            <option value="{{ prov.id }}">{{ prov.rut }} - {{ prov.razon_social }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="tipo_documento" class="form-label fw-bold">Tipo de Documento *</label>
+                    <select name="tipo_documento" id="tipo_documento" class="form-select" required>
+                        <option value="FACTURA" selected>Factura Electrónica</option>
+                        <option value="BOLETA">Boleta</option>
+                        <option value="GUIA_DESPACHO">Guía de Despacho</option>
+                        <option value="NOTA_CREDITO">Nota de Crédito (Disminución/Devolución)</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label for="numero_documento" class="form-label fw-bold">N° Documento *</label>
+                    <input type="text" name="numero_documento" id="numero_documento" class="form-control" placeholder="Ej: 148920" required>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="fecha_emision" class="form-label fw-bold">Fecha de Emisión *</label>
+                    <input type="date" name="fecha_emision" id="fecha_emision" class="form-control" required>
+                </div>
+
+                <div class="col-12">
+                    <div id="alertaNotaCredito" class="alert alert-warning d-none py-2 mb-2" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Atención:</strong> Las Notas de Crédito de proveedor descontarán existencias del inventario disponible de forma segura.
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <label for="observaciones" class="form-label">Observaciones / Glosa General</label>
+                    <input type="text" name="observaciones" id="observaciones" class="form-control" placeholder="Ej: Materiales recibidos conformes para mantención central">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjeta Líneas de Ítems -->
+    <div class="card card-custom mb-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0 fw-semibold text-primary">
+                <i class="bi bi-cart-plus me-1"></i> 2. Líneas de Ítems (con hasta 3 Descuentos Sucesivos)
+            </h5>
+            <button type="button" class="btn btn-sm btn-primary" id="btnAgregarLinea">
+                <i class="bi bi-plus-lg me-1"></i> Agregar Línea
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle mb-0" id="tablaDetalles">
+                    <thead class="table-light text-center small text-uppercase">
+                        <tr>
+                            <th style="min-width: 250px;">Artículo / Material</th>
+                            <th style="width: 100px;">U. Medida</th>
+                            <th style="width: 110px;">Stock Act.</th>
+                            <th style="width: 110px;">Cantidad *</th>
+                            <th style="width: 130px;">Precio Base ($) *</th>
+                            <th style="width: 90px;">Desc. 1 (%)</th>
+                            <th style="width: 90px;">Desc. 2 (%)</th>
+                            <th style="width: 90px;">Desc. 3 (%)</th>
+                            <th style="width: 130px;">Precio Final ($)</th>
+                            <th style="width: 140px;">Subtotal ($)</th>
+                            <th style="width: 50px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyDetalles">
+                        <!-- Filas dinámicas generadas con JS -->
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="3" class="text-end">Líneas ingresadas: <span id="lblTotalLineas" class="badge bg-secondary">0</span></th>
+                            <th class="text-center"><span id="lblTotalCantidad" class="fw-bold">0.00</span></th>
+                            <th colspan="5" class="text-end fw-bold fs-6">TOTAL NETO DEL DOCUMENTO:</th>
+                            <th class="text-end fw-bold text-success fs-5">$<span id="lblMontoTotalNeto">0</span></th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-muted small">
+                    <i class="bi bi-shield-check text-success me-1"></i>
+                    <strong>Transacción Atómica:</strong> Si ocurre cualquier error, no se registrará ningún cambio parcial en base de datos.
+                </div>
+                <div>
+                    <!-- Botón protegido contra doble submit -->
+                    <button type="submit" class="btn btn-success btn-lg px-4 fw-bold" id="btnConfirmarIngreso">
+                        <i class="bi bi-check-circle-fill me-2"></i> Confirmar e Ingresar a Inventario
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Modal Rápido: Nuevo Proveedor -->
+<div class="modal fade" id="modalNuevoProveedor" tabindex="-1" aria-labelledby="modalNuevoProveedorLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNuevoProveedorLabel"><i class="bi bi-building me-2"></i>Registrar Nuevo Proveedor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">RUT *</label>
+                    <input type="text" id="modal_prov_rut" class="form-control" placeholder="76.123.456-7">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Razón Social *</label>
+                    <input type="text" id="modal_prov_razon" class="form-control" placeholder="Comercializadora Industrial SpA">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Giro Comercial</label>
+                    <input type="text" id="modal_prov_giro" class="form-control" placeholder="Venta de insumos de construcción">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Teléfono</label>
+                    <input type="text" id="modal_prov_tel" class="form-control" placeholder="+56 9 1234 5678">
+                </div>
+                <div id="modal_prov_error" class="alert alert-danger py-1 small d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnGuardarProveedorModal">Guardar Proveedor</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Plantilla oculta para opciones de Artículos -->
+<template id="tmplArticuloOptions">
+    <option value="">-- Seleccionar Artículo --</option>
+    {% for art in articulos %}
+        <option value="{{ art.id }}" 
+                data-codigo="{{ art.codigo_interno }}" 
+                data-unidad="{{ art.get_unidad_medida_display }}" 
+                data-stock="{{ art.stock_actual }}" 
+                data-ultimo-costo="{{ art.ultimo_costo_compra }}">
+            [{{ art.codigo_interno }}] {{ art.nombre }} (Stock: {{ art.stock_actual }})
+        </option>
+    {% endfor %}
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const tbody = document.getElementById('tbodyDetalles');
+    const btnAgregar = document.getElementById('btnAgregarLinea');
+    const form = document.getElementById('formIngresoDocumento');
+    const btnConfirmar = document.getElementById('btnConfirmarIngreso');
+    const tipoDocSelect = document.getElementById('tipo_documento');
+    const alertaNotaCredito = document.getElementById('alertaNotaCredito');
+    const tmplArticuloOptions = document.getElementById('tmplArticuloOptions').innerHTML;
+
+    // Fecha de hoy por defecto
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('fecha_emision').value = hoy;
+
+    // Alerta dinámica según tipo de documento
+    tipoDocSelect.addEventListener('change', function () {
+        if (this.value === 'NOTA_CREDITO') {
+            alertaNotaCredito.classList.remove('d-none');
+        } else {
+            alertaNotaCredito.classList.add('d-none');
+        }
+    });
+
+    // Función para calcular descuentos sucesivos en el frontend (exactamente igual al backend)
+    function calcularPrecioFinal(base, d1, d2, d3) {
+        let p = parseFloat(base) || 0;
+        const desc1 = Math.min(100, Math.max(0, parseFloat(d1) || 0));
+        const desc2 = Math.min(100, Math.max(0, parseFloat(d2) || 0));
+        const desc3 = Math.min(100, Math.max(0, parseFloat(d3) || 0));
+
+        p = p * (1 - (desc1 / 100));
+        p = p * (1 - (desc2 / 100));
+        p = p * (1 - (desc3 / 100));
+
+        return Math.round(p);
+    }
+
+    // Agregar nueva fila a la tabla
+    function agregarFila(articuloId = '', cantidad = 1, precioBase = 0, d1 = 0, d2 = 0, d3 = 0) {
+        const row = document.createElement('tr');
+        row.className = 'linea-item';
+        row.innerHTML = `
+            <td>
+                <select class="form-select form-select-sm sel-articulo" required>
+                    ${tmplArticuloOptions}
+                </select>
+            </td>
+            <td class="text-center text-muted small cell-unidad">-</td>
+            <td class="text-center fw-semibold cell-stock">-</td>
+            <td>
+                <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center inp-cantidad" value="${cantidad}" required>
+            </td>
+            <td>
+                <input type="number" step="1" min="0" class="form-control form-control-sm text-end inp-precio-base" value="${precioBase}" required>
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm text-center inp-d1" value="${d1}">
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm text-center inp-d2" value="${d2}">
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm text-center inp-d3" value="${d3}">
+            </td>
+            <td class="text-end fw-semibold cell-precio-final">$0</td>
+            <td class="text-end fw-bold text-success cell-subtotal">$0</td>
+            <td class="text-center">
+                <button type="button" class="btn btn-outline-danger btn-sm p-1 btn-eliminar-fila" title="Eliminar fila">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(row);
+
+        const selArticulo = row.querySelector('.sel-articulo');
+        if (articuloId) {
+            selArticulo.value = articuloId;
+        }
+
+        // Eventos en los inputs de la fila
+        selArticulo.addEventListener('change', () => onArticuloChange(row));
+        row.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('input', () => recalcularFila(row));
+        });
+
+        row.querySelector('.btn-eliminar-fila').addEventListener('click', () => {
+            row.remove();
+            recalcularTotales();
+        });
+
+        if (articuloId) {
+            onArticuloChange(row);
+        } else {
+            recalcularFila(row);
+        }
+    }
+
+    function onArticuloChange(row) {
+        const select = row.querySelector('.sel-articulo');
+        const opt = select.options[select.selectedIndex];
+        const cellUnidad = row.querySelector('.cell-unidad');
+        const cellStock = row.querySelector('.cell-stock');
+        const inpPrecioBase = row.querySelector('.inp-precio-base');
+
+        if (opt && opt.value) {
+            cellUnidad.innerText = opt.dataset.unidad || '-';
+            cellStock.innerText = opt.dataset.stock || '0';
+            if (parseInt(inpPrecioBase.value) === 0 && opt.dataset.ultimoCosto) {
+                inpPrecioBase.value = opt.dataset.ultimoCosto;
+            }
+        } else {
+            cellUnidad.innerText = '-';
+            cellStock.innerText = '-';
+        }
+        recalcularFila(row);
+    }
+
+    function recalcularFila(row) {
+        const precioBase = parseFloat(row.querySelector('.inp-precio-base').value) || 0;
+        const d1 = parseFloat(row.querySelector('.inp-d1').value) || 0;
+        const d2 = parseFloat(row.querySelector('.inp-d2').value) || 0;
+        const d3 = parseFloat(row.querySelector('.inp-d3').value) || 0;
+        const cantidad = parseFloat(row.querySelector('.inp-cantidad').value) || 0;
+
+        const precioFinal = calcularPrecioFinal(precioBase, d1, d2, d3);
+        const subtotal = Math.round(precioFinal * cantidad);
+
+        row.querySelector('.cell-precio-final').innerText = `$${precioFinal.toLocaleString('es-CL')}`;
+        row.querySelector('.cell-subtotal').innerText = `$${subtotal.toLocaleString('es-CL')}`;
+
+        row.dataset.precioFinal = precioFinal;
+        row.dataset.subtotal = subtotal;
+
+        recalcularTotales();
+    }
+
+    function recalcularTotales() {
+        let totalNeto = 0;
+        let totalCantidad = 0;
+        const filas = tbody.querySelectorAll('.linea-item');
+
+        filas.forEach(fila => {
+            const cant = parseFloat(fila.querySelector('.inp-cantidad').value) || 0;
+            const sub = parseFloat(fila.dataset.subtotal) || 0;
+            totalCantidad += cant;
+            totalNeto += sub;
+        });
+
+        document.getElementById('lblTotalLineas').innerText = filas.length;
+        document.getElementById('lblTotalCantidad').innerText = totalCantidad.toFixed(2);
+        document.getElementById('lblMontoTotalNeto').innerText = totalNeto.toLocaleString('es-CL');
+    }
+
+    btnAgregar.addEventListener('click', () => agregarFila());
+
+    // Agregar primera fila por defecto
+    agregarFila();
+
+    // ==========================================
+    // ENVÍO SEGURO Y PREVENCIÓN DE DOBLE SUBMIT
+    // ==========================================
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        // Validar encabezado
+        const proveedor = document.getElementById('proveedor').value;
+        const tipoDoc = document.getElementById('tipo_documento').value;
+        const numDoc = document.getElementById('numero_documento').value.trim();
+        const fechaEmision = document.getElementById('fecha_emision').value;
+        const observaciones = document.getElementById('observaciones').value;
+
+        if (!proveedor) {
+            alert('Por favor, selecciona un proveedor.');
+            return;
+        }
+        if (!numDoc) {
+            alert('Por favor, ingresa el número de documento.');
+            return;
+        }
+        if (!fechaEmision) {
+            alert('Por favor, ingresa la fecha de emisión.');
+            return;
+        }
+
+        // Recolectar líneas
+        const filas = tbody.querySelectorAll('.linea-item');
+        if (filas.length === 0) {
+            alert('Debe agregar al menos una línea de artículo.');
+            return;
+        }
+
+        const lineas = [];
+        for (let fila of filas) {
+            const artId = fila.querySelector('.sel-articulo').value;
+            const cant = parseFloat(fila.querySelector('.inp-cantidad').value);
+            const pBase = parseInt(fila.querySelector('.inp-precio-base').value);
+            const d1 = parseFloat(fila.querySelector('.inp-d1').value) || 0;
+            const d2 = parseFloat(fila.querySelector('.inp-d2').value) || 0;
+            const d3 = parseFloat(fila.querySelector('.inp-d3').value) || 0;
+
+            if (!artId) {
+                alert('Debes seleccionar el artículo en todas las líneas.');
+                return;
+            }
+            if (isNaN(cant) || cant <= 0) {
+                alert('La cantidad debe ser mayor a 0 en todas las líneas.');
+                return;
+            }
+            if (isNaN(pBase) || pBase < 0) {
+                alert('El precio base debe ser válido.');
+                return;
+            }
+
+            lineas.push({
+                articulo_id: parseInt(artId),
+                cantidad: cant,
+                precio_unitario_base: pBase,
+                descuento_1_porcentaje: d1,
+                descuento_2_porcentaje: d2,
+                descuento_3_porcentaje: d3
+            });
+        }
+
+        // ==========================================================
+        // Criterio de Aceptación 4: Bloquear botón tras el primer clic
+        // ==========================================================
+        btnConfirmar.disabled = true;
+        const textoOriginal = btnConfirmar.innerHTML;
+        btnConfirmar.innerHTML = `
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            Procesando e ingresando a inventario en tiempo real...
+        `;
+
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const response = await fetch("{% url 'registro_documento' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    proveedor: parseInt(proveedor),
+                    tipo_documento: tipoDoc,
+                    numero_documento: numDoc,
+                    fecha_emision: fechaEmision,
+                    observaciones: observaciones,
+                    lineas: lineas
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 'ok') {
+                // Notificación de éxito y redirección inmediata
+                btnConfirmar.classList.remove('btn-success');
+                btnConfirmar.classList.add('btn-primary');
+                btnConfirmar.innerHTML = `<i class="bi bi-check2-all me-2"></i> ¡Stock Actualizado! Redirigiendo...`;
+
+                window.location.href = data.redirect_url;
+            } else {
+                throw new Error(data.message || 'Error al procesar el documento.');
+            }
+        } catch (err) {
+            alert('Error en la transacción: ' + err.message);
+            // Rehabilitar botón si hubo error para que el usuario pueda corregir
+            btnConfirmar.disabled = false;
+            btnConfirmar.innerHTML = textoOriginal;
+        }
+    });
+
+    // ==========================================
+    // MODAL DE PROVEEDOR RÁPIDO
+    // ==========================================
+    const btnGuardarProv = document.getElementById('btnGuardarProveedorModal');
+    btnGuardarProv.addEventListener('click', async function () {
+        const rut = document.getElementById('modal_prov_rut').value.trim();
+        const razon = document.getElementById('modal_prov_razon').value.trim();
+        const giro = document.getElementById('modal_prov_giro').value.trim();
+        const tel = document.getElementById('modal_prov_tel').value.trim();
+        const errDiv = document.getElementById('modal_prov_error');
+
+        if (!rut || !razon) {
+            errDiv.innerText = 'RUT y Razón Social son requeridos.';
+            errDiv.classList.remove('d-none');
+            return;
+        }
+
+        // Crear dinámicamente opción en el select
+        const provSelect = document.getElementById('proveedor');
+        const opt = document.createElement('option');
+        opt.value = "temp";
+        opt.text = `${rut} - ${razon}`;
+        opt.selected = true;
+        provSelect.appendChild(opt);
+
+        // Cerrar modal
+        const modalEl = document.getElementById('modalNuevoProveedor');
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+        errDiv.classList.add('d-none');
+    });
+});
+</script>
+{% endblock %}
+
