@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Crear Artículo - Catálogo Maestro{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card card-custom">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-semibold text-primary">
+                    <i class="bi bi-plus-square me-2"></i> Nuevo Artículo en Catálogo Maestro
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Código Interno *</label>
+                            {{ form.codigo_interno }}
+                            {% if form.codigo_interno.errors %}
+                                <div class="text-danger small mt-1">{{ form.codigo_interno.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Código de Barras / QR</label>
+                            {{ form.codigo_barras }}
+                            {% if form.codigo_barras.errors %}
+                                <div class="text-danger small mt-1">{{ form.codigo_barras.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Nombre del Artículo *</label>
+                            {{ form.nombre }}
+                            {% if form.nombre.errors %}
+                                <div class="text-danger small mt-1">{{ form.nombre.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Categoría *</label>
+                            {{ form.categoria }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Unidad de Medida *</label>
+                            {{ form.unidad_medida }}
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Ubicación en Bodega *</label>
+                            {{ form.ubicacion_bodega }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Stock Mínimo</label>
+                            {{ form.stock_minimo }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Stock Crítico</label>
+                            {{ form.stock_critico }}
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                        <a href="{% url 'lista_articulos' %}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">Guardar Artículo</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

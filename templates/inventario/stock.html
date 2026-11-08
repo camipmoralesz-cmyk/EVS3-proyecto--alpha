@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Inventario y Control de Stock en Tiempo Real{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="fw-bold text-dark mb-0">
+            <i class="bi bi-speedometer2 text-primary me-2"></i> Control de Stock en Tiempo Real
+        </h3>
+        <p class="text-muted small mb-0">
+            Existencias actualizadas al instante tras cada ingreso o salida por documento
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'registro_documento' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-file-earmark-plus me-1"></i> Ingreso por Documento (HU-01)
+        </a>
+        <a href="{% url 'historial_movimientos' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-clock-history me-1"></i> Auditoría / Kardex
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0 fw-semibold text-primary">
+            <i class="bi bi-box-seam me-2"></i> Existencias de Artículos y Materiales
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+            <input type="text" id="filtroStock" class="form-control form-control-sm" placeholder="Buscar por código o nombre...">
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered align-middle mb-0" id="tablaStock">
+                <thead class="table-light text-center small text-uppercase">
+                    <tr>
+                        <th style="width: 130px;">Código Interno</th>
+                        <th class="text-start">Nombre / Descripción</th>
+                        <th style="width: 140px;">Categoría</th>
+                        <th style="width: 100px;">U. Medida</th>
+                        <th style="width: 120px;">Ubicación</th>
+                        <th style="width: 120px;">Stock Actual</th>
+                        <th style="width: 100px;">Stock Mín.</th>
+                        <th style="width: 100px;">Stock Crít.</th>
+                        <th style="width: 130px;">Último Costo</th>
+                        <th style="width: 130px;">PMP Actual</th>
+                        <th style="width: 110px;">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for art in articulos %}
+                    <tr class="fila-stock">
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border font-monospace">{{ art.codigo_interno }}</span>
+                        </td>
+                        <td class="fw-semibold">{{ art.nombre }}</td>
+                        <td class="text-center"><span class="badge bg-secondary-subtle text-secondary">{{ art.categoria.nombre }}</span></td>
+                        <td class="text-center text-muted small">{{ art.get_unidad_medida_display }}</td>
+                        <td class="text-center small">{{ art.ubicacion_bodega }}</td>
+                        <td class="text-center fw-bold fs-6 text-primary">{{ art.stock_actual }}</td>
+                        <td class="text-center text-muted">{{ art.stock_minimo }}</td>
+                        <td class="text-center text-muted">{{ art.stock_critico }}</td>
+                        <td class="text-end fw-semibold">${{ art.ultimo_costo_compra }}</td>
+                        <td class="text-end text-muted">${{ art.pmp_costo_actual }}</td>
+                        <td class="text-center">
+                            {% if art.stock_actual <= art.stock_critico %}
+                                <span class="badge bg-danger"><i class="bi bi-exclamation-octagon-fill me-1"></i>Crítico</span>
+                            {% elif art.stock_actual <= art.stock_minimo %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Bajo</span>
+                            {% else %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Normal</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="11" class="text-center py-4 text-muted">
+                            No hay artículos registrados aún en el catálogo maestro.
+                            <br>
+                            <a href="{% url 'crear_articulo' %}" class="btn btn-sm btn-primary mt-2">Crear Primer Artículo</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('filtroStock').addEventListener('input', function() {
+    const valor = this.value.toLowerCase();
+    const filas = document.querySelectorAll('#tablaStock tbody tr.fila-stock');
+    filas.forEach(fila => {
+        const texto = fila.innerText.toLowerCase();
+        fila.style.display = texto.includes(valor) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Documentos de Entrada de Materiales{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="fw-bold text-dark mb-0">
+            <i class="bi bi-journal-text text-primary me-2"></i> Documentos de Entrada Registrados
+        </h3>
+        <p class="text-muted small mb-0">
+            Facturas, boletas, guías de despacho y notas de crédito de proveedores
+        </p>
+    </div>
+    <div>
+        <a href="{% url 'registro_documento' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i> Registrar Nuevo Documento
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+                <thead class="table-light small text-uppercase">
+                    <tr>
+                        <th>N° Documento</th>
+                        <th>Tipo</th>
+                        <th>Proveedor</th>
+                        <th>Fecha Emisión</th>
+                        <th>Fecha Registro</th>
+                        <th class="text-end">Monto Neto</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in documentos %}
+                    <tr>
+                        <td class="fw-bold font-monospace">{{ doc.numero_documento }}</td>
+                        <td>
+                            <span class="badge {% if doc.tipo_documento == 'NOTA_CREDITO' %}bg-warning text-dark{% else %}bg-primary{% endif %}">
+                                {{ doc.get_tipo_documento_display }}
+                            </span>
+                        </td>
+                        <td>{{ doc.proveedor.razon_social }} <span class="text-muted small">({{ doc.proveedor.rut }})</span></td>
+                        <td>{{ doc.fecha_emision|date:"d/m/Y" }}</td>
+                        <td class="small text-muted">{{ doc.fecha_registro|date:"d/m/Y H:i" }}</td>
+                        <td class="text-end fw-bold">${{ doc.monto_neto }}</td>
+                        <td class="text-center">
+                            <span class="badge {% if doc.estado == 'CONFIRMADO' %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ doc.get_estado_display }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'detalle_documento' doc.id %}" class="btn btn-sm btn-outline-primary" title="Ver detalle">
+                                <i class="bi bi-eye-fill"></i> Detalle
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">
+                            No se han registrado documentos aún.
+                            <br>
+                            <a href="{% url 'registro_documento' %}" class="btn btn-sm btn-primary mt-2">Registrar el Primero</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
