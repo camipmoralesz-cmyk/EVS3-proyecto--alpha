@@ -1,0 +1,36 @@
+<div class="border rounded p-3 mb-2 bg-light formset-row">
+    {% for hidden in subform.hidden_fields %}
+        {{ hidden }}
+    {% endfor %}
+
+    {% if subform.non_field_errors %}
+        <div class="alert alert-danger py-1 small mb-2">
+            {{ subform.non_field_errors }}
+        </div>
+    {% endif %}
+
+    <div class="row g-2 align-items-end">
+        {% for field in subform.visible_fields %}
+            {% if field.name == 'DELETE' %}
+                <div class="col-md-2">
+                    <div class="form-check mt-3">
+                        {{ field }}
+                        <label class="form-check-label small text-danger" for="{{ field.id_for_label }}">
+                            Eliminar
+                        </label>
+                    </div>
+                </div>
+            {% else %}
+                <div class="col-md">
+                    <label class="form-label small fw-semibold mb-1" for="{{ field.id_for_label }}">
+                        {{ field.label }}{% if field.field.required %} *{% endif %}
+                    </label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
