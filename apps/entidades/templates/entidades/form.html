@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}{% if es_edicion %}Editar Ficha{% else %}Nueva Ficha{% endif %} - Proveedores y Mandantes{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="fw-bold text-dark mb-0">
+                <i class="bi bi-building text-primary me-2"></i>
+                {% if es_edicion %}Editar Ficha: {{ entidad.razon_social }}{% else %}Nueva Ficha de Proveedor / Mandante{% endif %}
+            </h3>
+            <a href="{% url 'lista_entidades' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Volver al listado
+            </a>
+        </div>
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <!-- Sección 1: Datos tributarios -->
+            <div class="card card-custom mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-semibold text-primary">
+                        <i class="bi bi-card-checklist me-2"></i> Datos tributarios
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" for="{{ form.rut.id_for_label }}">RUT *</label>
+                            {{ form.rut }}
+                            {% if form.rut.errors %}
+                                <div class="text-danger small mt-1">{{ form.rut.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" for="{{ form.tipo.id_for_label }}">Tipo de Entidad *</label>
+                            {{ form.tipo }}
+                            {% if form.tipo.errors %}
+                                <div class="text-danger small mt-1">{{ form.tipo.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="{{ form.nombre_fantasia.id_for_label }}">Nombre de Fantasía</label>
+                            {{ form.nombre_fantasia }}
+                            {% if form.nombre_fantasia.errors %}
+                                <div class="text-danger small mt-1">{{ form.nombre_fantasia.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="{{ form.razon_social.id_for_label }}">Razón Social *</label>
+                            {{ form.razon_social }}
+                            {% if form.razon_social.errors %}
+                                <div class="text-danger small mt-1">{{ form.razon_social.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="{{ form.giro.id_for_label }}">Giro Comercial</label>
+                            {{ form.giro }}
+                            {% if form.giro.errors %}
+                                <div class="text-danger small mt-1">{{ form.giro.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="{{ form.telefono.id_for_label }}">Teléfono</label>
+                            {{ form.telefono }}
+                            {% if form.telefono.errors %}
+                                <div class="text-danger small mt-1">{{ form.telefono.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="{{ form.email.id_for_label }}">Correo Electrónico</label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                                <div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="{{ form.direccion.id_for_label }}">Dirección</label>
+                            {{ form.direccion }}
+                            {% if form.direccion.errors %}
+                                <div class="text-danger small mt-1">{{ form.direccion.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sección 2: Contactos -->
+            {% include "entidades/_formset.html" with formset=contactos_formset titulo="Contactos" icono="bi-people" texto_boton="Agregar contacto" %}
+
+            <!-- Sección 3: Datos bancarios -->
+            {% include "entidades/_formset.html" with formset=cuentas_formset titulo="Datos bancarios" icono="bi-bank" texto_boton="Agregar cuenta" %}
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <a href="{% url 'lista_entidades' %}" class="btn btn-outline-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary fw-bold px-4">
+                    <i class="bi bi-check-lg me-1"></i> Guardar Ficha
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Clona formset.empty_form desde el <template>, reemplaza "__prefix__" por el
+// índice actual de TOTAL_FORMS y suma 1 al contador del management form.
+document.querySelectorAll('[data-add-formset]').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+        const prefix = boton.getAttribute('data-add-formset');
+        const totalFormsInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+        const container = document.getElementById('formset-container-' + prefix);
+        const template = document.getElementById('empty-form-' + prefix);
+
+        const nuevoIndice = parseInt(totalFormsInput.value, 10);
+        const htmlFila = template.innerHTML.replace(/__prefix__/g, nuevoIndice);
+
+        container.insertAdjacentHTML('beforeend', htmlFila);
+        totalFormsInput.value = nuevoIndice + 1;
+    });
+});
+</script>
+{% endblock %}
