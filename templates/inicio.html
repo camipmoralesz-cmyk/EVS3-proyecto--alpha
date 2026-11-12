@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio - Mi Sistema{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h2 mb-4">Bienvenido a tu Panel Principal</h1>
+    
+    <div class="alert alert-success" role="alert">
+        ¡Felicidades! La herencia de plantillas y Bootstrap 5 están funcionando correctamente.
+    </div>
+
+    <!-- Una tarjeta de ejemplo de Bootstrap -->
+    <div class="card shadow-sm" style="max-width: 24rem;">
+        <div class="card-body">
+            <h5 class="card-title">Tarjeta de Prueba</h5>
+            <p class="card-text">Este contenido vive dentro del bloque <code>content</code>, mientras que el menú lateral viene heredado desde <code>base.html</code>.</p>
+            <a href="#" class="btn btn-primary">Botón de acción</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
