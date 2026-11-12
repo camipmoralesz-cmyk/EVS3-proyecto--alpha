@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iniciar sesión · Proyecto Alpha</title>
+  <style>
+    :root{--fondo:#020617;--panel:#0f172a;--borde:#1e293b;--texto:#e2e8f0;--suave:#94a3b8;--cian:#06b6d4;--cian-claro:#22d3ee;--rojo:#fb7185}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:var(--fondo);color:var(--texto);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{flex:1;display:grid;grid-template-columns:1fr;gap:2rem;align-items:center;max-width:64rem;width:100%;margin:0 auto;padding:2rem 1rem}
+    @media(min-width:900px){main{grid-template-columns:1fr 1fr}}
+    .marca h1{font-size:clamp(1.9rem,4vw,2.9rem);line-height:1.1;margin:0 0 .75rem}
+    .marca h1 span{color:var(--cian-claro)}
+    .marca p{color:var(--suave);max-width:28rem;line-height:1.5}
+    .datos{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;max-width:28rem;margin-top:1.25rem}
+    .datos div{background:rgba(15,23,42,.7);border:1px solid var(--borde);border-radius:.6rem;padding:.7rem}
+    .datos b{display:block;font-size:.85rem}
+    .datos small{color:var(--suave)}
+    .tarjeta{background:var(--panel);border:1px solid var(--borde);border-top:4px solid var(--cian);border-radius:1rem;padding:1.75rem;box-shadow:0 20px 40px rgba(0,0,0,.4)}
+    .tarjeta h2{margin:0;font-size:1.4rem}
+    .sub{color:var(--suave);font-size:.9rem;margin:.25rem 0 1.25rem}
+    label{display:block;font-size:.8rem;font-weight:600;color:#cbd5e1;margin:0 0 .35rem}
+    .campo{margin-bottom:1rem;position:relative}
+    input[type=text],input[type=password],select{width:100%;padding:.7rem .8rem;background:var(--fondo);border:1px solid var(--borde);border-radius:.6rem;color:var(--texto);font-size:.95rem}
+    input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid var(--cian);outline-offset:1px}
+    input:disabled,select:disabled{opacity:.5}
+    .ver{position:absolute;right:.5rem;top:1.75rem;background:none;border:0;color:var(--suave);font-size:.75rem;cursor:pointer;padding:.3rem}
+    .fila{display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.8rem;margin-bottom:1rem}
+    .fila label{display:flex;align-items:center;gap:.4rem;margin:0;font-weight:400;color:var(--suave)}
+    .enlace{background:none;border:0;color:var(--cian-claro);cursor:pointer;font-size:.8rem;padding:0}
+    .enlace:hover{text-decoration:underline}
+    .entrar{width:100%;padding:.85rem;background:var(--cian);color:#042f3a;font-weight:700;font-size:.95rem;border:0;border-radius:.6rem;cursor:pointer}
+    .entrar:hover:not(:disabled){background:var(--cian-claro)}
+    .entrar:disabled{opacity:.5;cursor:not-allowed}
+    .alerta{border-radius:.6rem;padding:.8rem;font-size:.85rem;margin-bottom:1rem;border:1px solid rgba(244,63,94,.5);background:rgba(136,19,55,.35);color:#fecdd3}
+    .alerta b{color:var(--rojo);display:block;margin-bottom:.15rem}
+    .pie{margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--borde);text-align:center;font-size:.8rem;color:var(--suave)}
+    .modal{position:fixed;inset:0;background:rgba(2,6,23,.8);display:none;align-items:center;justify-content:center;padding:1rem;z-index:10}
+    .modal.abierto{display:flex}
+    .modal>div{max-width:24rem;width:100%;text-align:center;border-radius:1rem;padding:1.5rem}
+    .modal-clave>div{background:#164e63;border:2px solid var(--cian-claro)}
+    .modal-clave h3{margin:0 0 .75rem;color:#a5f3fc;font-size:1.4rem}
+    .modal-clave p{background:rgba(8,51,68,.7);border:1px solid rgba(6,182,212,.4);border-radius:.5rem;padding:.75rem;font-size:.85rem;color:#cffafe}
+    .modal-info>div{background:var(--panel);border:1px solid var(--borde);text-align:left}
+    .modal button.cerrar{margin-top:1rem;width:100%;padding:.6rem;border:0;border-radius:.6rem;background:#fff;color:#020617;font-weight:700;cursor:pointer}
+    footer{background:var(--panel);border-top:1px solid var(--borde);padding:.8rem 1rem;font-size:.75rem;color:var(--suave);display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;justify-content:space-between}
+    @media(prefers-reduced-motion:no-preference){.alerta{animation:sacudir .4s ease-in-out}}
+    @keyframes sacudir{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+  </style>
+</head>
+<body>
+<main>
+  <section class="marca">
+    <h1>Frío y Agroindustria <span>SpA</span></h1>
+    <p>Gestión logística, control de bodega con Cardex inalterable y valorización por Precio Medio Ponderado (PMP).</p>
+    <div class="datos">
+      <div><b>Control por roles</b><small>5 perfiles segregados</small></div>
+      <div><b>Cardex auditable</b><small>Inalterable SHA-256</small></div>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Inicia tu sesión</h2>
+    <p class="sub">Ingresa tus credenciales corporativas.</p>
+
+    {% if bloqueado %}
+      <div class="alerta" role="alert">
+        <b>Cuenta bloqueada temporalmente</b>
+        Superaste el límite de intentos fallidos. Espera <strong id="cuenta">{{ bloqueado }}</strong> segundos.
+      </div>
+    {% elif form.non_field_errors and not modal_clave %}
+      <div class="alerta" role="alert">{{ form.non_field_errors.0 }}</div>
+    {% endif %}
+
+    <form method="post" id="form-login" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+
+      <div class="campo">
+        <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+        {{ form.username }}
+      </div>
+
+      <div class="campo">
+        <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+        {{ form.password }}
+        <button type="button" class="ver" id="ver-clave" aria-label="Mostrar u ocultar contraseña">Mostrar</button>
+      </div>
+
+      <div class="campo">
+        <label for="{{ form.rol.id_for_label }}">{{ form.rol.label }}</label>
+        {{ form.rol }}
+      </div>
+
+      <div class="fila">
+        <label>{{ form.recordarme }} {{ form.recordarme.label }}</label>
+        <button type="button" class="enlace" data-abrir="modal-ayuda">¿Olvidaste tu contraseña?</button>
+      </div>
+
+      <button type="submit" class="entrar" id="btn-entrar">Entrar al sistema</button>
+    </form>
+
+    <div class="pie">
+      ¿Necesitas un perfil nuevo?
+      <button type="button" class="enlace" data-abrir="modal-ayuda">Pídelo al administrador</button>
+    </div>
+  </section>
+</main>
+
+<div class="modal modal-clave {% if modal_clave %}abierto{% endif %}" id="modal-clave" role="dialog" aria-modal="true" aria-labelledby="t-clave">
+  <div>
+    <h3 id="t-clave">¡Ups!</h3>
+    <p>La contraseña o el usuario no son válidos. Revisa los datos e inténtalo de nuevo.</p>
+    <button type="button" class="cerrar" data-cerrar>Entendido</button>
+  </div>
+</div>
+
+<div class="modal modal-info" id="modal-ayuda" role="dialog" aria-modal="true" aria-labelledby="t-ayuda">
+  <div>
+    <h3 id="t-ayuda" style="margin-top:0">Soporte TI</h3>
+    <p style="color:var(--suave);font-size:.9rem">Para recuperar tu contraseña o solicitar un perfil, escribe a soporte con tu nombre y el rol que necesitas.</p>
+    <p style="font-size:.9rem">contacto@frioyagroindustria.cl<br>+56 42 222 5592</p>
+    <button type="button" class="cerrar" data-cerrar>Cerrar</button>
+  </div>
+</div>
+
+<footer>
+  <span>contacto@frioyagroindustria.cl · Arturo Prat 152, Chillán · +56 42 222 5592</span>
+  <span>© 2026 Frío y Agroindustria SpA · Proyecto Alpha</span>
+</footer>
+
+<script>
+  // Mostrar / ocultar contraseña
+  const clave = document.getElementById('id_password');
+  const ver = document.getElementById('ver-clave');
+  ver.addEventListener('click', () => {
+    const oculta = clave.type === 'password';
+    clave.type = oculta ? 'text' : 'password';
+    ver.textContent = oculta ? 'Ocultar' : 'Mostrar';
+  });
+
+  // Modales
+  document.querySelectorAll('[data-abrir]').forEach(b =>
+    b.addEventListener('click', () => document.getElementById(b.dataset.abrir).classList.add('abierto')));
+  document.querySelectorAll('.modal').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-cerrar')) m.classList.remove('abierto'); });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal.abierto').forEach(m => m.classList.remove('abierto'));
+  });
+
+   // Cuenta regresiva del bloqueo (el servidor es quien lo aplica de verdad)
+  (function () {
+    const form = document.getElementById('form-login');
+    let t = parseInt(form.dataset.bloqueado, 10) || 0;
+    if (t <= 0) return;
+    const span = document.getElementById('cuenta');
+    form.querySelectorAll('input:not([type=hidden]),select,button[type=submit]').forEach(el => el.disabled = true);
+    const id = setInterval(() => {
+      t -= 1;
+      span.textContent = Math.max(t, 0);
+      if (t <= 0) { clearInterval(id); window.location.href = window.location.pathname; }
+    }, 1000);
+  })();
+</script>
+</body>
+</html>

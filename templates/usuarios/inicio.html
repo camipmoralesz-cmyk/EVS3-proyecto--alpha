@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inicio · Proyecto Alpha</title>
+  <style>
+    body{margin:0;background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif;padding:1.5rem}
+    .barra{max-width:60rem;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;background:#1e293b;border:1px solid #334155;border-radius:1rem;padding:1.25rem}
+    h1{margin:0;font-size:1.25rem}
+    p{margin:.25rem 0 0;color:#94a3b8;font-size:.85rem}
+    strong{color:#67e8f9}
+    button{background:#334155;color:#cbd5e1;border:0;border-radius:.6rem;padding:.6rem 1rem;font-weight:600;cursor:pointer}
+    button:hover{background:#475569}
+    ul{max-width:60rem;margin:1rem auto;padding:0;list-style:none;display:grid;gap:.75rem}
+    li{background:#1e293b;border:1px solid #334155;border-radius:.75rem;padding:1rem}
+    li small{color:#94a3b8;display:block;margin-top:.25rem}
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <div>
+      <h1>Hola, {{ user.get_full_name|default:user.username }}</h1>
+      <p>{{ user.email }}</p>
+    </div>
+    <form method="post" action="{% url 'usuarios:logout' %}">
+      {% csrf_token %}
+      <button type="submit">Cerrar sesión</button>
+    </form>
+  </div>
+  <ul>
+    {% for r in roles_usuario %}
+      <li><strong>{{ r.name }}</strong> · {{ r.badge }}<small>{{ r.description }}</small></li>
+    {% empty %}
+      <li>Tu cuenta aún no tiene un rol asignado. Pide a un administrador que te agregue a un grupo.</li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

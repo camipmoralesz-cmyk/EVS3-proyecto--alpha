@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>403 · Acceso denegado</title>
+  <style>
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif;padding:1rem}
+    .caja{max-width:30rem;text-align:center;background:#1e293b;border:1px solid rgba(244,63,94,.4);border-radius:1rem;padding:2rem}
+    .codigo{color:#fb7185;font-weight:700;font-size:.85rem}
+    h1{margin:.4rem 0 1rem}
+    .aviso{background:rgba(136,19,55,.4);border:1px solid rgba(244,63,94,.3);color:#fecdd3;border-radius:.5rem;padding:.75rem;font-size:.9rem}
+    a{display:block;margin-top:1.5rem;padding:.7rem;background:#06b6d4;color:#042f3a;font-weight:700;border-radius:.6rem;text-decoration:none}
+    a:hover{background:#22d3ee}
+  </style>
+</head>
+<body>
+  <main class="caja">
+    <div class="codigo">Error HTTP 403</div>
+    <h1>Acceso denegado</h1>
+    <p class="aviso">No tienes permisos suficientes para acceder a este módulo. Si crees que es un error, pide a un administrador que revise tu rol.</p>
+    <a href="{% url 'usuarios:inicio' %}">Volver al inicio</a>
+  </main>
+</body>
+</html>
