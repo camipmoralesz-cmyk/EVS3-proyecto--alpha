@@ -1,3 +1,5 @@
 from django.shortcuts import render
 
-# Create your views here.
+
+def despachos(request):
+    return render(request, 'obras/despachos.html')

@@ -1,8 +1,160 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard - Panel Principal{% endblock %}
+{% block title %}Dashboard | FYAG Logística{% endblock %}
+{% block header_title %}Panel Administrativo y Bodega{% endblock %}
 
 {% block content %}
-    <h1 class="h2 mb-4">Dashboard Principal</h1>
-    <p>Bienvenido al panel de control después del inicio de sesión.</p>
+<div class="container-fluid px-0">
+    
+    <!-- Título y subtítulo -->
+    <div class="mb-4">
+        <h1 class="h3 fw-bold text-white mb-1">Dashboard Logístico - FYAG</h1>
+        <p class="text-secondary mb-0">Supervisión general de bodega, trazabilidad Kardex y alertas de inventario crítico.</p>
+    </div>
+
+    <!-- FILA 1: 4 TARJETAS KPI (Igual que la referencia) -->
+    <div class="row g-3 mb-4">
+        <!-- KPI 1 -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-secondary border-opacity-25 h-100" style="background-color: #1a1d21;">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-secondary small mb-1">Artículos en Catálogo</p>
+                        <h3 class="fw-bold text-white mb-0">{{ total_articulos|default:"0" }}</h3>
+                    </div>
+                    <i class="bi bi-box-seam fs-1 text-primary"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI 2: Alerta de Stock Crítico -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-secondary border-opacity-25 h-100" style="background-color: #1a1d21;">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-secondary small mb-1">Stock Crítico / Mínimo</p>
+                        <h3 class="fw-bold text-warning mb-0">{{ alertas_stock|default:"0" }}</h3>
+                    </div>
+                    <i class="bi bi-exclamation-triangle fs-1 text-warning"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI 3: Obras Activas -->
+        <a href="{% url 'core:dashboard' %}" class="d-flex flex-column align-items-center text-center mb-3 text-white text-decoration-none"></a>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-secondary border-opacity-25 h-100" style="background-color: #1a1d21;">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-secondary small mb-1">Obras Activas</p>
+                        <h3 class="fw-bold text-success mb-0">{{ obras_activas|default:"0" }}</h3>
+                    </div>
+                    <i class="bi bi-building-check fs-1 text-success"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI 4: Movimientos Kardex -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-secondary border-opacity-25 h-100" style="background-color: #1a1d21;">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-secondary small mb-1">Movimientos Hoy</p>
+                        <h3 class="fw-bold text-info mb-0">{{ movimientos_hoy|default:"0" }}</h3>
+                    </div>
+                    <i class="bi bi-arrow-left-right fs-1 text-info"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILA 2: TABLA PRINCIPAL (IZQUIERDA) + ALERTAS Y ACCESOS (DERECHA) -->
+    <div class="row g-4">
+        
+        <!-- Columna Izquierda (8 columnas): Últimos Movimientos Kardex -->
+        <div class="col-12 col-lg-8">
+            <div class="card border-secondary border-opacity-25 h-100" style="background-color: #1a1d21;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title text-info fw-bold mb-0">
+                            <i class="bi bi-journal-text me-2"></i>Últimos Movimientos de Kardex
+                        </h5>
+                        <a href="#" class="btn btn-sm btn-outline-info">Ver historial completo</a>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr class="text-secondary small">
+                                    <th>Código</th>
+                                    <th>Artículo / Insumo</th>
+                                    <th>Tipo</th>
+                                    <th>Cantidad</th>
+                                    <th>Destino / Origen</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mov in ultimos_movimientos %}
+                                <tr>
+                                    <td><code>{{ mov.articulo.codigo }}</code></td>
+                                    <td>{{ mov.articulo.nombre }}</td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ mov.tipo }}</span>
+                                    </td>
+                                    <td>{{ mov.cantidad }}</td>
+                                    <td>{{ mov.referencia }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-secondary py-4">
+                                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                                        Aún no hay movimientos registrados en el Kardex.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna Derecha (4 columnas): Alertas Operativas y Accesos Rápidos -->
+        <div class="col-12 col-lg-4">
+            <div class="card border-secondary border-opacity-25 h-100" style="background-color: #1a1d21;">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title text-info fw-bold mb-3">
+                        <i class="bi bi-bell-fill me-2"></i>Alertas y Accesos Rápidos
+                    </h5>
+
+                    <ul class="list-group list-group-flush mb-4">
+                        <li class="list-group-item bg-transparent text-light d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-25">
+                            <span>Quiebres de stock críticos</span>
+                            <span class="badge bg-danger rounded-pill">{{ alertas_stock|default:"0" }}</span>
+                        </li>
+                        <li class="list-group-item bg-transparent text-light d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-25">
+                            <span>Facturas por validar</span>
+                            <span class="badge bg-warning text-dark rounded-pill">0</span>
+                        </li>
+                        <li class="list-group-item bg-transparent text-light d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-25">
+                            <span>Mermas reportadas (mes)</span>
+                            <span class="badge bg-info text-dark rounded-pill">0</span>
+                        </li>
+                    </ul>
+
+                    <!-- Botones de acción rápida en bodega -->
+                    <div class="mt-auto d-grid gap-2">
+                        <a href="#" class="btn btn-outline-primary">
+                            <i class="bi bi-plus-circle me-2"></i>Registrar Compra (Factura)
+                        </a>
+                        <a href="#" class="btn btn-outline-warning">
+                            <i class="bi bi-box-arrow-up-right me-2"></i>Despachar a Obra
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
 {% endblock %}

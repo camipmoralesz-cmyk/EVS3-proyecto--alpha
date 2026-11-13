@@ -1,3 +1,5 @@
 from django.shortcuts import render
 
-# Create your views here.
+
+def lista_auditoria(request):
+    return render(request, 'auditoria/lista_auditoria.html')

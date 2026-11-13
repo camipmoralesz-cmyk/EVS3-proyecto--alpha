@@ -1,3 +1,4 @@
 from django.shortcuts import render
 
-# Create your views here.
+def lista_entidades(request):
+    return render(request, 'entidades/lista_entidades.html')
