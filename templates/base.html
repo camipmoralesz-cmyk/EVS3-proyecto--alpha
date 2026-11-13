@@ -62,7 +62,7 @@
                 </a>
             </li>
             <li>
-                <a href="#" class="nav-link text-light">
+                <a href="{% url 'lista_documentos' %}" class="nav-link {% if request.resolver_match.url_name in 'lista_documentos,registro_documento,detalle_documento' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-receipt me-2"></i> Compras y Facturas
                 </a>
             </li>
@@ -72,7 +72,7 @@
                 </a>
             </li>
             <li>
-                <a href="#" class="nav-link text-light">
+                <a href="{% url 'historial_movimientos' %}" class="nav-link {% if request.resolver_match.url_name in 'historial_movimientos,inventario_stock' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-journal-check me-2"></i> Kardex Inalterable
                 </a>
             </li>

@@ -1,77 +1,56 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
-{% block title %}Auditoría y Kardex de Movimientos de Inventario{% endblock %}
+{% block title %}Kardex Inalterable | FYAG Logística{% endblock %}
+{% block header_title %}Kardex Histórico de Movimientos{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h3 class="fw-bold text-dark mb-0">
-            <i class="bi bi-clock-history text-primary me-2"></i> Registro Histórico de Movimientos (Kardex)
-        </h3>
-        <p class="text-muted small mb-0">
-            Trazabilidad completa y auditoría de cada cambio en el stock físico
-        </p>
-    </div>
-    <div class="d-flex gap-2">
-        <a href="{% url 'registro_documento' %}" class="btn btn-primary btn-sm">
-            <i class="bi bi-file-earmark-plus me-1"></i> Ingreso por Documento
-        </a>
-        <a href="{% url 'inventario_stock' %}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-boxes me-1"></i> Stock en Tiempo Real
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-white mb-1">Kardex Inalterable de Bodega</h1>
+            <p class="text-secondary mb-0">Trazabilidad auditada de ingresos, egresos a obras, mermas y devoluciones.</p>
+        </div>
+        <a href="{% url 'inventario_stock' %}" class="btn btn-outline-info">
+            <i class="bi bi-boxes me-1"></i> Ver Stock Actual
         </a>
     </div>
-</div>
 
-<div class="card card-custom">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover table-striped align-middle mb-0">
-                <thead class="table-light small text-uppercase">
-                    <tr>
-                        <th>Fecha y Hora</th>
-                        <th>Artículo / Material</th>
-                        <th>Tipo Movimiento</th>
-                        <th class="text-center">Stock Anterior</th>
-                        <th class="text-center">Cantidad Movida</th>
-                        <th class="text-center">Stock Posterior</th>
-                        <th class="text-end">Costo Unitario</th>
-                        <th>Referencia / Documento</th>
-                        <th>Usuario</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for mov in movimientos %}
-                    <tr>
-                        <td class="small text-muted">{{ mov.fecha|date:"d/m/Y H:i:s" }}</td>
-                        <td>
-                            <strong>{{ mov.articulo.nombre }}</strong>
-                            <div class="small text-muted font-monospace">{{ mov.articulo.codigo_interno }}</div>
-                        </td>
-                        <td>
-                            <span class="badge {% if mov.tipo_movimiento == 'ENTRADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                                {{ mov.get_tipo_movimiento_display }}
-                            </span>
-                        </td>
-                        <td class="text-center text-muted">{{ mov.stock_anterior }}</td>
-                        <td class="text-center fw-bold {% if mov.tipo_movimiento == 'ENTRADA' %}text-success{% else %}text-danger{% endif %}">
-                            {% if mov.tipo_movimiento == 'ENTRADA' %}+{% else %}-{% endif %}{{ mov.cantidad }}
-                        </td>
-                        <td class="text-center fw-bold text-primary">{{ mov.stock_posterior }}</td>
-                        <td class="text-end fw-semibold">${{ mov.costo_unitario }}</td>
-                        <td class="small">{{ mov.referencia|default:"-" }}</td>
-                        <td class="small text-muted">{{ mov.usuario.username|default:"Sistema / Bodega" }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">
-                            No se registran movimientos de inventario aún.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="text-secondary small">
+                            <th>Fecha / Hora</th>
+                            <th>Artículo</th>
+                            <th>Tipo Movimiento</th>
+                            <th>Cantidad</th>
+                            <th>Documento Ref.</th>
+                            <th>Responsable</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in movimientos %}
+                        <tr>
+                            <td class="small text-secondary">{{ mov.fecha|default:mov.creado_en }}</td>
+                            <td class="fw-semibold text-white">{{ mov.articulo }}</td>
+                            <td><span class="badge bg-primary">{{ mov.tipo_movimiento|default:mov }}</span></td>
+                            <td class="fw-bold">{{ mov.cantidad }}</td>
+                            <td>{{ mov.documento|default:"-" }}</td>
+                            <td>{{ mov.usuario|default:"Sistema" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-secondary py-4">
+                                <i class="bi bi-journal-check fs-3 d-block mb-2"></i>
+                                Aún no existen movimientos registrados en el Kardex.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 {% endblock %}
-
