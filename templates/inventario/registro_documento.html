@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}HU-01: Ingreso de Materiales por Documento{% endblock %}
+{% block title %}Ingreso de Materiales por Documento{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -12,7 +12,7 @@
                     Ingreso de Materiales por Documento
                 </h3>
                 <p class="text-muted small mb-0">
-                    Historia de Usuario <strong>HU-01</strong> — Rol: <em>Encargado de Bodega y Logística</em>
+                    Rol: <em>Encargado de Bodega y Logística</em>
                 </p>
             </div>
             <div>
@@ -43,9 +43,9 @@
                 <div class="col-md-4">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label for="proveedor" class="form-label fw-bold mb-0">Proveedor *</label>
-                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-bs-toggle="modal" data-bs-target="#modalNuevoProveedor">
-                            <i class="bi bi-plus-circle me-1"></i>+ Nuevo Proveedor
-                        </button>
+                        <a href="{% url 'crear_entidad' %}" class="btn btn-link btn-sm p-0 text-decoration-none">
+                            <i class="bi bi-plus-circle me-1"></i>Crear ficha de proveedor
+                        </a>
                     </div>
                     <select name="proveedor" id="proveedor" class="form-select" required>
                         <option value="">-- Seleccionar Proveedor --</option>
@@ -149,41 +149,6 @@
         </div>
     </div>
 </form>
-
-<!-- Modal Rápido: Nuevo Proveedor -->
-<div class="modal fade" id="modalNuevoProveedor" tabindex="-1" aria-labelledby="modalNuevoProveedorLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalNuevoProveedorLabel"><i class="bi bi-building me-2"></i>Registrar Nuevo Proveedor</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label fw-bold">RUT *</label>
-                    <input type="text" id="modal_prov_rut" class="form-control" placeholder="76.123.456-7">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Razón Social *</label>
-                    <input type="text" id="modal_prov_razon" class="form-control" placeholder="Comercializadora Industrial SpA">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Giro Comercial</label>
-                    <input type="text" id="modal_prov_giro" class="form-control" placeholder="Venta de insumos de construcción">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Teléfono</label>
-                    <input type="text" id="modal_prov_tel" class="form-control" placeholder="+56 9 1234 5678">
-                </div>
-                <div id="modal_prov_error" class="alert alert-danger py-1 small d-none"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="btnGuardarProveedorModal">Guardar Proveedor</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Plantilla oculta para opciones de Artículos -->
 <template id="tmplArticuloOptions">
@@ -474,37 +439,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // ==========================================
-    // MODAL DE PROVEEDOR RÁPIDO
-    // ==========================================
-    const btnGuardarProv = document.getElementById('btnGuardarProveedorModal');
-    btnGuardarProv.addEventListener('click', async function () {
-        const rut = document.getElementById('modal_prov_rut').value.trim();
-        const razon = document.getElementById('modal_prov_razon').value.trim();
-        const giro = document.getElementById('modal_prov_giro').value.trim();
-        const tel = document.getElementById('modal_prov_tel').value.trim();
-        const errDiv = document.getElementById('modal_prov_error');
-
-        if (!rut || !razon) {
-            errDiv.innerText = 'RUT y Razón Social son requeridos.';
-            errDiv.classList.remove('d-none');
-            return;
-        }
-
-        // Crear dinámicamente opción en el select
-        const provSelect = document.getElementById('proveedor');
-        const opt = document.createElement('option');
-        opt.value = "temp";
-        opt.text = `${rut} - ${razon}`;
-        opt.selected = true;
-        provSelect.appendChild(opt);
-
-        // Cerrar modal
-        const modalEl = document.getElementById('modalNuevoProveedor');
-        const modalInstance = bootstrap.Modal.getInstance(modalEl);
-        if (modalInstance) modalInstance.hide();
-        errDiv.classList.add('d-none');
-    });
 });
 </script>
 {% endblock %}

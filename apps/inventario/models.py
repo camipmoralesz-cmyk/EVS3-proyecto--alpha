@@ -79,6 +79,12 @@ class DocumentoEntrada(models.Model):
         indexes = [
             models.Index(fields=['proveedor', 'tipo_documento', 'numero_documento']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['proveedor', 'tipo_documento', 'numero_documento'],
+                name='uniq_documento_proveedor_tipo_numero',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.get_tipo_documento_display()} N° {self.numero_documento} - {self.proveedor.razon_social}"
