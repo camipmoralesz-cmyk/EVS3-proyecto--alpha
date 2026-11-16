@@ -22,7 +22,7 @@ class Articulo(models.Model):
     ubicacion_bodega = models.CharField(max_length=50, help_text="Ej: Pasillo 3 - Estante B")
     
     # Control de Existencias y Umbrales
-    stock_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    stock_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     stock_critico = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     

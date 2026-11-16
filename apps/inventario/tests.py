@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.core.exceptions import ValidationError
 from apps.catalogo.models import Categoria, Articulo
 from apps.entidades.models import Proveedor
-from apps.inventario.models import DocumentoEntrada, DetalleDocumento, MovimientoInventario
+from apps.inventario.models import DocumentoEntrada, MovimientoInventario
 from apps.inventario.services import (
     calcular_descuentos_sucesivos,
     calcular_subtotal_linea,
