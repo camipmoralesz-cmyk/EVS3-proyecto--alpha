@@ -48,11 +48,28 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
     if not lineas_detalle:
         raise ValidationError("El documento debe contener al menos una línea de detalle.")
 
+    proveedor = datos_documento['proveedor']
+    tipo_documento = datos_documento['tipo_documento']
+    numero_documento = str(datos_documento['numero_documento']).strip()
+    tipos_validos = {tipo for tipo, _ in DocumentoEntrada.TIPOS_DOCUMENTO}
+    if tipo_documento not in tipos_validos:
+        raise ValidationError("El tipo de documento seleccionado no es válido.")
+    if not numero_documento:
+        raise ValidationError("El número del documento es obligatorio.")
+    if not proveedor.activo or proveedor.tipo != proveedor.Tipo.PROVEEDOR:
+        raise ValidationError("Debe seleccionar un proveedor activo.")
+    if DocumentoEntrada.objects.filter(
+        proveedor=proveedor,
+        tipo_documento=tipo_documento,
+        numero_documento=numero_documento,
+    ).exists():
+        raise ValidationError("Ya existe un documento con ese tipo y número para este proveedor.")
+
     # 1. Crear encabezado del documento
     documento = DocumentoEntrada.objects.create(
-        proveedor=datos_documento['proveedor'],
-        tipo_documento=datos_documento['tipo_documento'],
-        numero_documento=datos_documento['numero_documento'].strip(),
+        proveedor=proveedor,
+        tipo_documento=tipo_documento,
+        numero_documento=numero_documento,
         fecha_emision=datos_documento['fecha_emision'],
         observaciones=datos_documento.get('observaciones', ''),
         registrado_por=usuario,
@@ -64,9 +81,14 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
 
     # 2. Procesar cada línea de ítem
     for linea in lineas_detalle:
-        articulo_id = linea['articulo_id']
-        cantidad = Decimal(str(linea['cantidad']))
-        precio_base = int(linea['precio_unitario_base'])
+        try:
+            articulo_id = int(linea['articulo_id'])
+            cantidad = Decimal(str(linea['cantidad']))
+            precio_base = int(linea['precio_unitario_base'])
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            raise ValidationError("Cada línea debe incluir artículo, cantidad y precio base válidos.")
+        if not cantidad.is_finite():
+            raise ValidationError("La cantidad debe ser un número válido.")
         d1 = Decimal(str(linea.get('descuento_1_porcentaje', 0) or 0))
         d2 = Decimal(str(linea.get('descuento_2_porcentaje', 0) or 0))
         d3 = Decimal(str(linea.get('descuento_3_porcentaje', 0) or 0))
@@ -96,7 +118,10 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
         )
 
         # 3. Bloquear y actualizar el artículo (con select_for_update para prevenir race conditions)
-        articulo = Articulo.objects.select_for_update().get(pk=articulo_id)
+        try:
+            articulo = Articulo.objects.select_for_update().get(pk=articulo_id)
+        except Articulo.DoesNotExist:
+            raise ValidationError("Uno de los artículos seleccionados ya no existe.")
         stock_anterior = articulo.stock_actual
 
         if es_nota_credito:
