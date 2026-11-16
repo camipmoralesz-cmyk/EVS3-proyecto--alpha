@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Kardex Inalterable | FYAG Logística{% endblock %}
+{% block header_title %}Kardex Histórico de Movimientos{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-white mb-1">Kardex Inalterable de Bodega</h1>
+            <p class="text-secondary mb-0">Trazabilidad auditada de ingresos, egresos a obras, mermas y devoluciones.</p>
+        </div>
+        <a href="{% url 'inventario_stock' %}" class="btn btn-outline-info">
+            <i class="bi bi-boxes me-1"></i> Ver Stock Actual
+        </a>
+    </div>
+
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="text-secondary small">
+                            <th>Fecha / Hora</th>
+                            <th>Artículo</th>
+                            <th>Tipo Movimiento</th>
+                            <th>Cantidad</th>
+                            <th>Documento Ref.</th>
+                            <th>Responsable</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in movimientos %}
+                        <tr>
+                            <td class="small text-secondary">{{ mov.fecha|default:mov.creado_en }}</td>
+                            <td class="fw-semibold text-white">{{ mov.articulo }}</td>
+                            <td><span class="badge bg-primary">{{ mov.tipo_movimiento|default:mov }}</span></td>
+                            <td class="fw-bold">{{ mov.cantidad }}</td>
+                            <td>{{ mov.documento|default:"-" }}</td>
+                            <td>{{ mov.usuario|default:"Sistema" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-secondary py-4">
+                                <i class="bi bi-journal-check fs-3 d-block mb-2"></i>
+                                Aún no existen movimientos registrados en el Kardex.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
