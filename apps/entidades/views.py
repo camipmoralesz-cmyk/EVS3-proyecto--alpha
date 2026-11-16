@@ -1,6 +1,5 @@
 import re
 
-<<<<<<< HEAD
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q, Value
@@ -123,7 +122,3 @@ def cambiar_estado_entidad(request, pk):
     estado_txt = "activada" if entidad.activo else "desactivada"
     messages.success(request, f"Ficha de {entidad.razon_social} {estado_txt}.")
     return redirect('lista_entidades')
-=======
-def lista_entidades(request):
-    return render(request, 'entidades/lista_entidades.html')
->>>>>>> ramaCamila
