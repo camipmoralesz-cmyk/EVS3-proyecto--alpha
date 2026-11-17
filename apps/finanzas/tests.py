@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from apps.catalogo.models import Articulo, Categoria
 from apps.entidades.models import ContactoEntidad, CuentaBancaria, Proveedor
-from apps.finanzas.models import ObservacionFactura
+from apps.finanzas.models import ObservacionFactura, PagoProveedor, SaldoInicialEmpresa
 from apps.inventario.models import DetalleDocumento, DocumentoEntrada
 from apps.obras.models import Obra
 
@@ -370,3 +370,166 @@ class FinanzasFacturasTests(BaseFinanzasTestCase):
         respuesta = self.client.get(reverse('finanzas:facturas_lista'))
 
         self.assertEqual(respuesta.status_code, 403)
+
+
+class FinanzasPagosTests(BaseFinanzasTestCase):
+    def setUp(self):
+        self.client.force_login(self.user_finanzas)
+        proveedor = Proveedor.objects.create(
+            rut='76.543.210-3',
+            razon_social='Proveedor para pagos SpA',
+        )
+        self.documento = DocumentoEntrada.objects.create(
+            proveedor=proveedor,
+            numero_documento='PAGO-1001',
+            fecha_emision=date(2026, 11, 17),
+            monto_neto=30000,
+        )
+
+    def _payload(self, **overrides):
+        datos = {
+            'documento': self.documento.pk,
+            'fecha': '2026-11-17',
+            'monto': '12000.00',
+            'medio_pago': PagoProveedor.MedioPago.TRANSFERENCIA,
+            'estado': PagoProveedor.Estado.PAGADO,
+        }
+        datos.update(overrides)
+        return datos
+
+    def test_crear_y_listar_pago(self):
+        respuesta = self.client.post(
+            reverse('finanzas:pago_crear'),
+            self._payload(),
+        )
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        pago = PagoProveedor.objects.get(documento=self.documento)
+        self.assertEqual(pago.usuario, self.user_finanzas)
+        self.assertEqual(pago.monto, Decimal('12000.00'))
+
+        listado = self.client.get(reverse('finanzas:pagos_lista'))
+        self.assertEqual(listado.status_code, 200)
+        self.assertContains(listado, 'PAGO-1001')
+        self.assertContains(listado, '$12000')
+
+    def test_editar_pago_y_conservar_usuario_que_lo_registro(self):
+        pago = PagoProveedor.objects.create(
+            documento=self.documento,
+            fecha=date(2026, 11, 16),
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.EFECTIVO,
+            estado=PagoProveedor.Estado.PENDIENTE,
+            usuario=self.user_bodega,
+        )
+
+        respuesta = self.client.post(
+            reverse('finanzas:pago_editar', args=[pago.pk]),
+            self._payload(monto='15000.00'),
+        )
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        pago.refresh_from_db()
+        self.assertEqual(pago.monto, Decimal('15000.00'))
+        self.assertEqual(pago.usuario, self.user_bodega)
+
+    def test_rechazar_pago_mayor_al_neto_del_documento(self):
+        respuesta = self.client.post(
+            reverse('finanzas:pago_crear'),
+            self._payload(monto='30000.01'),
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'El monto supera el saldo disponible')
+        self.assertFalse(PagoProveedor.objects.filter(documento=self.documento).exists())
+
+    def test_no_permitir_que_pagos_activos_acumulados_superen_el_neto(self):
+        PagoProveedor.objects.create(
+            documento=self.documento,
+            fecha=date(2026, 11, 16),
+            monto=Decimal('25000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PAGADO,
+            usuario=self.user_finanzas,
+        )
+
+        respuesta = self.client.post(
+            reverse('finanzas:pago_crear'),
+            self._payload(monto='5001.00'),
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'El monto supera el saldo disponible')
+        self.assertEqual(PagoProveedor.objects.filter(documento=self.documento).count(), 1)
+
+    def test_usuario_de_bodega_no_puede_ver_ni_crear_pagos(self):
+        self.client.force_login(self.user_bodega)
+
+        listado = self.client.get(reverse('finanzas:pagos_lista'))
+        crear = self.client.get(reverse('finanzas:pago_crear'))
+
+        self.assertEqual(listado.status_code, 403)
+        self.assertEqual(crear.status_code, 403)
+
+
+class FinanzasSaldoPanelTests(BaseFinanzasTestCase):
+    def setUp(self):
+        self.client.force_login(self.user_finanzas)
+        self.proveedor = Proveedor.objects.create(
+            rut='76.543.210-3',
+            razon_social='Proveedor para saldo SpA',
+        )
+
+    def _crear_documento(self, numero, monto):
+        return DocumentoEntrada.objects.create(
+            proveedor=self.proveedor,
+            tipo_documento=DocumentoEntrada.TIPO_FACTURA,
+            numero_documento=numero,
+            fecha_emision=date(2026, 11, 17),
+            monto_neto=monto,
+            estado=DocumentoEntrada.ESTADO_CONFIRMADO,
+        )
+
+    def test_solo_pago_pagado_disminuye_el_saldo_inicial(self):
+        self.assertEqual(SaldoInicialEmpresa.objects.get(pk=1).monto, Decimal('30000.00'))
+        documento = self._crear_documento('SALDO-1001', 10000)
+
+        url = reverse('finanzas:panel')
+        respuesta = self.client.get(url)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Saldo disponible para compras')
+        self.assertEqual(respuesta.context['saldo_disponible'], Decimal('30000.00'))
+
+        pago = PagoProveedor.objects.create(
+            documento=documento,
+            fecha=date(2026, 11, 17),
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PENDIENTE,
+            usuario=self.user_finanzas,
+        )
+        pendiente = self.client.get(url)
+        self.assertEqual(pendiente.context['saldo_disponible'], Decimal('30000.00'))
+
+        pago.estado = PagoProveedor.Estado.PAGADO
+        pago.save(update_fields=['estado'])
+        pagado = self.client.get(url)
+        self.assertEqual(pagado.context['pagos_efectuados'], Decimal('10000.00'))
+        self.assertEqual(pagado.context['saldo_disponible'], Decimal('20000.00'))
+
+    def test_pago_anulado_no_se_descuenta_del_saldo(self):
+        documento = self._crear_documento('SALDO-ANULADO', 10000)
+        PagoProveedor.objects.create(
+            documento=documento,
+            fecha=date(2026, 11, 17),
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.ANULADO,
+            usuario=self.user_finanzas,
+        )
+
+        respuesta = self.client.get(reverse('finanzas:panel'))
+
+        self.assertEqual(respuesta.context['pagos_efectuados'], Decimal('0.00'))
+        self.assertEqual(respuesta.context['saldo_disponible'], Decimal('30000.00'))

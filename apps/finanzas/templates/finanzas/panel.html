@@ -27,5 +27,36 @@
             </div>
         </div>
     </div>
+
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="card border-secondary bg-dark bg-opacity-50 h-100">
+                <div class="card-body">
+                    <div class="small text-secondary mb-1">Saldo inicial de la empresa</div>
+                    <div class="h3 text-info mb-0">${{ saldo_inicial|floatformat:2 }} CLP</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-secondary bg-dark bg-opacity-50 h-100">
+                <div class="card-body">
+                    <div class="small text-secondary mb-1">Pagos efectuados</div>
+                    <div class="h3 text-warning mb-0">${{ pagos_efectuados|floatformat:2 }} CLP</div>
+                    <div class="small text-secondary mt-2">Solo incluye pagos con estado Pagado.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-secondary bg-dark bg-opacity-50 h-100">
+                <div class="card-body">
+                    <div class="small text-secondary mb-1">Saldo disponible para compras</div>
+                    <div class="h3 {% if saldo_disponible < 0 %}text-danger{% else %}text-success{% endif %} mb-0">
+                        ${{ saldo_disponible|floatformat:2 }} CLP
+                    </div>
+                    <div class="small text-secondary mt-2">Saldo inicial menos pagos efectuados; no incluye ingresos.</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

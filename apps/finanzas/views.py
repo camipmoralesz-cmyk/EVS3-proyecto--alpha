@@ -14,7 +14,8 @@ from apps.inventario.models import DocumentoEntrada
 from apps.obras.models import Obra
 from apps.usuarios.roles import rol_requerido
 
-from .forms import ObservacionFacturaForm, PresupuestoObraForm
+from .forms import ObservacionFacturaForm, PagoProveedorForm, PresupuestoObraForm
+from .models import PagoProveedor, SaldoInicialEmpresa
 
 
 def _obra_tiene_movimientos(obra):
@@ -31,9 +32,18 @@ def _obra_tiene_movimientos(obra):
 
 @rol_requerido('finanzas')
 def panel_finanzas(request):
-    """Vista de inicio del módulo de Finanzas (protegida por rol finanzas)."""
+    """Muestra el saldo inicial menos los pagos efectivamente realizados."""
+    saldo_inicial = SaldoInicialEmpresa.objects.get(pk=1)
+    pagos_efectuados = PagoProveedor.objects.filter(
+        estado=PagoProveedor.Estado.PAGADO,
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    saldo_disponible = saldo_inicial.monto - pagos_efectuados
+
     return render(request, 'finanzas/panel.html', {
         'titulo': 'Panel de Finanzas',
+        'saldo_inicial': saldo_inicial.monto,
+        'pagos_efectuados': pagos_efectuados,
+        'saldo_disponible': saldo_disponible,
     })
 
 
@@ -89,6 +99,67 @@ def detalle_factura_finanzas(request, pk):
         'formulario_observacion': formulario_observacion,
         'observaciones': documento.observaciones_finanzas.select_related('usuario').all(),
     })
+
+
+@rol_requerido('finanzas')
+@require_GET
+def lista_pagos_finanzas(request):
+    q = request.GET.get('q', '').strip()
+    estado = request.GET.get('estado', '').strip()
+    pagos = PagoProveedor.objects.select_related(
+        'documento',
+        'documento__proveedor',
+        'usuario',
+    )
+    if q:
+        pagos = pagos.filter(
+            Q(documento__numero_documento__icontains=q)
+            | Q(documento__proveedor__razon_social__icontains=q)
+        )
+    if estado in PagoProveedor.Estado.values:
+        pagos = pagos.filter(estado=estado)
+
+    return render(request, 'finanzas/pagos_lista.html', {
+        'titulo': 'Pagos a Proveedores',
+        'pagos': pagos,
+        'q': q,
+        'estado_seleccionado': estado,
+        'estados': PagoProveedor.Estado.choices,
+    })
+
+
+def _guardar_pago_finanzas(request, pago=None):
+    formulario = PagoProveedorForm(request.POST or None, instance=pago)
+    if request.method == 'POST' and formulario.is_valid():
+        pago_guardado = formulario.save(commit=False)
+        if pago is None:
+            pago_guardado.usuario = request.user
+        pago_guardado.save()
+        accion = 'actualizado' if pago else 'registrado'
+        messages.success(request, f'El pago fue {accion} correctamente.')
+        return redirect('finanzas:pagos_lista')
+
+    return render(request, 'finanzas/pago_form.html', {
+        'titulo': 'Editar pago' if pago else 'Registrar pago',
+        'formulario': formulario,
+        'pago': pago,
+    })
+
+
+@rol_requerido('finanzas')
+@require_http_methods(['GET', 'POST'])
+def crear_pago_finanzas(request):
+    return _guardar_pago_finanzas(request)
+
+
+@rol_requerido('finanzas')
+@require_http_methods(['GET', 'POST'])
+def editar_pago_finanzas(request, pk):
+    pago = get_object_or_404(
+        PagoProveedor.objects.select_related('documento', 'usuario'),
+        pk=pk,
+    )
+    return _guardar_pago_finanzas(request, pago=pago)
 
 
 @rol_requerido('finanzas')
