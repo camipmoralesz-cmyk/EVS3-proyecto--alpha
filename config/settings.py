@@ -61,6 +61,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'apps.core.context_processors.roles_processor',
             ],
         },
     },
@@ -145,3 +146,4 @@ MAILERS = {
 LOGIN_URL = 'usuarios:login'
 LOGIN_REDIRECT_URL = '/inventario/stock/'
 LOGOUT_REDIRECT_URL = 'usuarios:login'
+LOGIN_REDIRECT_URL = '/'

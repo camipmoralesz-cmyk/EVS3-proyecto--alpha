@@ -1,0 +1,113 @@
+{% extends 'core/base_admin.html' %}
+
+{% block title %}Consulta Gerencial | FYAG{% endblock %}
+{% block header_title %}Consulta Global de Solo Lectura ({{ titulo_seccion }}){% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-white mb-1">{{ titulo_seccion }}</h1>
+            <p class="text-secondary mb-0">Vista de supervisión gerencial. Por política de segregación de funciones, las altas y modificaciones están deshabilitadas para este rol.</p>
+        </div>
+        <span class="badge bg-secondary bg-opacity-25 border border-info text-info px-3 py-2">
+            <i class="bi bi-lock-fill me-1"></i> Modo Solo Lectura
+        </span>
+    </div>
+
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    {% if seccion == 'catalogo' %}
+                        <thead>
+                            <tr class="text-secondary small">
+                                <th>Código</th>
+                                <th>Artículo</th>
+                                <th>Categoría</th>
+                                <th>Stock Actual</th>
+                                <th>Stock Mínimo</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in registros %}
+                            <tr>
+                                <td><code>{{ item.codigo_interno|default:item.id }}</code></td>
+                                <td class="fw-semibold text-white">{{ item.nombre|default:item }}</td>
+                                <td>{{ item.categoria|default:"General" }}</td>
+                                <td class="fw-bold">{{ item.stock_actual }}</td>
+                                <td>{{ item.stock_minimo }}</td>
+                                <td>
+                                    {% if item.stock_actual <= item.stock_minimo %}
+                                        <span class="badge bg-danger">Stock Crítico</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Normal</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center text-secondary py-4">Sin artículos registrados.</td></tr>
+                            {% endfor %}
+                        </tbody>
+
+                    {% elif seccion == 'facturas' %}
+                        <thead>
+                            <tr class="text-secondary small">
+                                <th>Tipo Doc.</th>
+                                <th>N° Documento</th>
+                                <th>Proveedor</th>
+                                <th>Fecha Emisión</th>
+                                <th>Estado Auditoría</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in registros %}
+                            <tr>
+                                <td><span class="badge bg-info text-dark">{{ doc.tipo_documento }}</span></td>
+                                <td class="fw-bold text-white">{{ doc.numero_documento }}</td>
+                                <td>{{ doc.proveedor }}</td>
+                                <td>{{ doc.fecha_emision }}</td>
+                                <td><span class="badge bg-success">Registrado en Bodega</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center text-secondary py-4">No hay documentos tributarios ingresados.</td></tr>
+                            {% endfor %}
+                        </tbody>
+
+                    {% elif seccion == 'entidades' %}
+                        <thead>
+                            <tr class="text-secondary small">
+                                <th>RUT</th>
+                                <th>Razón Social</th>
+                                <th>Giro Comercial</th>
+                                <th>Tipo</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ent in registros %}
+                            <tr>
+                                <td class="font-monospace text-info fw-bold">{{ ent.rut }}</td>
+                                <td class="text-white fw-semibold">{{ ent.razon_social }}</td>
+                                <td>{{ ent.giro|default:"-" }}</td>
+                                <td><span class="badge bg-primary">{{ ent.tipo }}</span></td>
+                                <td>
+                                    {% if ent.activo %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactivo</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center text-secondary py-4">No hay proveedores ni mandantes registrados.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

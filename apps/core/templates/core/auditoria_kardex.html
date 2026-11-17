@@ -1,0 +1,146 @@
+{% extends 'core/base_admin.html' %}
+
+{% block title %}Auditoría y Anulación | FYAG Logística{% endblock %}
+{% block header_title %}Auditoría Integral del Kardex y Contra-Asientos (HU-12){% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-white mb-1">Auditoría del Kardex (Traza Cronológica)</h1>
+            <p class="text-secondary mb-0">Registro inmutable de operaciones y reversa controlada mediante contra-asiento.</p>
+        </div>
+        <button onclick="window.print()" class="btn btn-outline-info">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Exportar a PDF / Imprimir
+        </button>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Buscador -->
+    <div class="card border-secondary border-opacity-25 mb-3" style="background-color: #1a1d21;">
+        <div class="card-body py-3">
+            <form method="get" class="row g-2 align-items-center">
+                <div class="col-md-9">
+                    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Buscar por nombre de producto o insumo...">
+                </div>
+                <div class="col-md-3 d-grid">
+                    <button type="submit" class="btn btn-info fw-semibold">
+                        <i class="bi bi-search me-1"></i> Filtrar Traza
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de Auditoría -->
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="text-secondary small">
+                            <th>ID Transacción</th>
+                            <th>Fecha / Hora</th>
+                            <th>Producto</th>
+                            <th>Operación</th>
+                            <th>Cantidad</th>
+                            <th>Ref. / Motivo</th>
+                            <th class="text-end">Anulación Controlada</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in movimientos %}
+                        <tr>
+                            <td><code>#{{ mov.id }}</code></td>
+                            <td class="small text-secondary">{{ mov.fecha|default:mov.creado_en|default:"Registro" }}</td>
+                            <td class="fw-semibold text-white">{{ mov.articulo }}</td>
+                            <td>
+                                <span class="badge {% if 'ANULACION' in mov.tipo_movimiento|default:'' %}bg-warning text-dark{% else %}bg-primary{% endif %}">
+                                    {{ mov.tipo_movimiento|default:mov.tipo }}
+                                </span>
+                            </td>
+                            <td class="fw-bold">{{ mov.cantidad }}</td>
+                            <td class="small">{{ mov.documento|default:mov.referencia|default:"-" }}</td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#modalContraAsiento"
+                                        data-id="{{ mov.id }}"
+                                        data-art="{{ mov.articulo }}"
+                                        data-cant="{{ mov.cantidad }}">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Generar Contra-Asiento
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-secondary py-4">No hay movimientos para auditar.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Anulación Controlada (Figura 25 del informe) -->
+<div class="modal fade" id="modalContraAsiento" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border-danger">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-warning fw-bold">
+                    <i class="bi bi-shield-exclamation me-2"></i>Anulación Controlada (Contra-Asiento)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" id="formAnular">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-warning py-2 small">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Por política de integridad FYAG, el registro original <strong>no se elimina</strong>. Se creará un movimiento inverso compensatorio.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">Transacción a reversar</label>
+                        <input type="text" id="txtTransaccion" class="form-control bg-secondary bg-opacity-25 text-white" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-white">Motivo obligatorio de la anulación *</label>
+                        <textarea name="motivo" rows="3" class="form-control" placeholder="Escribe aquí la justificación de auditoría para el contra-asiento..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger fw-semibold">
+                        Confirmar contra-asiento y anular
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const modal = document.getElementById('modalContraAsiento');
+    modal.addEventListener('show.bs.modal', function (event) {
+        const btn = event.relatedTarget;
+        const id = btn.getAttribute('data-id');
+        const art = btn.getAttribute('data-art');
+        const cant = btn.getAttribute('data-cant');
+        
+        document.getElementById('txtTransaccion').value = `ID #${id} | ${art} (Cant: ${cant})`;
+        document.getElementById('formAnular').action = `/auditoria/anular/${id}/`;
+    });
+</script>
+{% endblock %}

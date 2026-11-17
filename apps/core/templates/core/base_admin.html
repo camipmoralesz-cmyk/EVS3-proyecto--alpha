@@ -1,0 +1,130 @@
+{% load static %}
+<!doctype html>
+<html lang="es" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}FYAG | Gerencia General{% endblock %}</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="{% static 'css/sidebars.css' %}" rel="stylesheet">
+    
+    <style>
+        body { background-color: #121417; }
+        .sidebar-fyag {
+            width: 270px;
+            background-color: #1a1d21;
+            border-right: 1px solid #2b3035;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+            font-weight: 600;
+        }
+        .nav-pills .nav-link:not(.active):hover {
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<main class="d-flex flex-nowrap min-vh-100">
+    <!-- SIDEBAR EXCLUSIVO DE GERENCIA / ADMINISTRADOR GENERAL -->
+    <aside class="d-flex flex-column flex-shrink-0 p-3 sidebar-fyag">
+        <a href="{% url 'core:dashboard' %}" class="d-flex flex-column align-items-center text-center mb-3 text-white text-decoration-none">
+            <div class="rounded-circle bg-primary bg-opacity-10 border border-primary p-3 mb-2">
+                <img src="{% static 'img/logo_fyag.png' %}" alt="Logo FYAG" class="img-fluid">
+            </div>
+            <span class="fs-5 fw-bold tracking-wide text-info">FRÍO Y AGROINDUSTRIA</span>
+            <span class="badge bg-info text-dark mt-1">Perfil: Gerencia General</span>
+        </a>
+        <hr class="border-secondary">
+        
+        <ul class="nav nav-pills flex-column mb-auto gap-1">
+            <li class="mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
+                Gestión Estratégica y Control
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'core:dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-speedometer2 me-2"></i> Dashboard y KPIs
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'core:auditoria_kardex' %}" class="nav-link {% if request.resolver_match.url_name == 'auditoria_kardex' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-shield-lock me-2"></i> Auditoría y Reversas
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'core:aprobacion_inventarios' %}" class="nav-link {% if request.resolver_match.url_name == 'aprobacion_inventarios' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-clipboard2-check me-2"></i> Aprobar Inventarios
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'core:alertas_stock' %}" class="nav-link {% if request.resolver_match.url_name == 'alertas_stock' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-exclamation-triangle me-2"></i> Alertas de Stock
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'core:gestion_usuarios' %}" class="nav-link {% if request.resolver_match.url_name == 'gestion_usuarios' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-people me-2"></i> Usuarios y Roles (RBAC)
+                </a>
+            </li>
+
+            <li class="mt-3 mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
+                Consultas Globales (Solo Lectura)
+            </li>
+            <li>
+                <a href="{% url 'core:consulta_lectura' 'catalogo' %}" class="nav-link {% if seccion == 'catalogo' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-box-seam me-2"></i> Consulta Catálogo
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'core:consulta_lectura' 'facturas' %}" class="nav-link {% if seccion == 'facturas' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-receipt me-2"></i> Consulta Facturas
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'core:consulta_lectura' 'entidades' %}" class="nav-link {% if seccion == 'entidades' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-truck me-2"></i> Consulta Proveedores
+                </a>
+            </li>
+        </ul>
+        <hr class="border-secondary">
+        
+        <div class="d-flex align-items-center text-white">
+            <i class="bi bi-person-badge fs-4 me-2 text-info"></i>
+            <div class="d-flex flex-column lh-1">
+                <strong>{{ request.user.username|default:"Admin" }}</strong>
+                <small class="text-info mt-1" style="font-size: 0.72rem;">Administrador General</small>
+            </div>
+        </div>
+    </aside>
+
+    <!-- CONTENEDOR DERECHO -->
+    <div class="flex-grow-1 d-flex flex-column overflow-auto">
+        <header class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center" style="background-color: #1a1d21;">
+            <div class="d-flex align-items-center text-info fw-semibold">
+                <i class="bi bi-grid-1x2 me-2"></i>
+                <span>{% block header_title %}Panel Gerencial - Lectura Global, Auditoría y Control{% endblock %}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-dark border border-info text-info">
+                    <i class="bi bi-eye me-1"></i> Segregación Activa: Sin Operaciones de Bodega
+                </span>
+                <span class="badge bg-dark border border-secondary text-secondary">
+                    <i class="bi bi-clock me-1"></i> {% now "d/m/Y" %}
+                </span>
+            </div>
+        </header>
+
+        <div class="p-4 flex-grow-1">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
