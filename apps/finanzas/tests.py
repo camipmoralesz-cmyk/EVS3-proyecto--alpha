@@ -5,8 +5,9 @@ from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 
+from apps.catalogo.models import Articulo, Categoria
 from apps.entidades.models import ContactoEntidad, CuentaBancaria, Proveedor
-from apps.inventario.models import DocumentoEntrada
+from apps.inventario.models import DetalleDocumento, DocumentoEntrada
 from apps.obras.models import Obra
 
 User = get_user_model()
@@ -276,3 +277,69 @@ class FinanzasPresupuestosTests(BaseFinanzasTestCase):
         self.assertRedirects(r_post, reverse('finanzas:presupuestos_lista'))
         self.obra.refresh_from_db()
         self.assertEqual(self.obra.presupuesto_total, Decimal('15000000.00'))
+
+
+class FinanzasFacturasTests(BaseFinanzasTestCase):
+    """Pruebas de consulta y valorización de facturas en Finanzas (Etapa 4)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        proveedor = Proveedor.objects.create(
+            rut='76.543.210-3',
+            razon_social='Proveedor de Prueba SpA',
+        )
+        categoria = Categoria.objects.create(nombre='Materiales de prueba')
+        articulo = Articulo.objects.create(
+            codigo_interno='FIN-001',
+            nombre='Perfil de acero',
+            categoria=categoria,
+            ubicacion_bodega='Bodega central',
+            pmp_costo_actual=1250,
+        )
+        cls.documento = DocumentoEntrada.objects.create(
+            proveedor=proveedor,
+            numero_documento='F-1001',
+            fecha_emision=date(2026, 11, 1),
+            registrado_por=cls.user_finanzas,
+            monto_neto=2500,
+        )
+        DetalleDocumento.objects.create(
+            documento=cls.documento,
+            articulo=articulo,
+            cantidad=Decimal('2.00'),
+            precio_unitario_base=1300,
+            precio_unitario_final=1250,
+            subtotal_linea=2500,
+        )
+
+    def test_finanzas_lista_documentos_y_puede_buscar(self):
+        self.client.force_login(self.user_finanzas)
+
+        respuesta = self.client.get(reverse('finanzas:facturas_lista'), {'q': 'F-1001'})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'F-1001')
+        self.assertContains(respuesta, '$2500 CLP')
+        self.assertContains(respuesta, reverse('finanzas:factura_detalle', args=[self.documento.pk]))
+
+    def test_finanzas_ve_desglose_subtotal_neto_y_pmp_sin_acciones_de_edicion(self):
+        self.client.force_login(self.user_finanzas)
+        url = reverse('finanzas:factura_detalle', args=[self.documento.pk])
+
+        respuesta = self.client.get(url)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Subtotal línea')
+        self.assertContains(respuesta, '$2500 CLP')
+        self.assertContains(respuesta, '$1250 CLP')
+        self.assertNotContains(respuesta, 'Editar')
+        self.assertNotContains(respuesta, 'Borrar')
+        self.assertEqual(self.client.post(url).status_code, 405)
+
+    def test_otro_rol_no_puede_consultar_facturas_de_finanzas(self):
+        self.client.force_login(self.user_bodega)
+
+        respuesta = self.client.get(reverse('finanzas:facturas_lista'))
+
+        self.assertEqual(respuesta.status_code, 403)

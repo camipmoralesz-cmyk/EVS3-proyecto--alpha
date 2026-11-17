@@ -6,10 +6,11 @@ from django.db import connection, transaction
 from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Replace
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.entidades.forms import ContactoFormSet, CuentaFormSet, ProveedorForm
 from apps.entidades.models import Proveedor
+from apps.inventario.models import DocumentoEntrada
 from apps.obras.models import Obra
 from apps.usuarios.roles import rol_requerido
 
@@ -33,6 +34,46 @@ def panel_finanzas(request):
     """Vista de inicio del módulo de Finanzas (protegida por rol finanzas)."""
     return render(request, 'finanzas/panel.html', {
         'titulo': 'Panel de Finanzas',
+    })
+
+
+@rol_requerido('finanzas')
+@require_GET
+def lista_facturas_finanzas(request):
+    """Muestra documentos de entrada para consulta y valorización, sin edición."""
+    q = request.GET.get('q', '').strip()
+    documentos = DocumentoEntrada.objects.select_related(
+        'proveedor',
+        'registrado_por',
+    ).prefetch_related('detalles__articulo')
+
+    if q:
+        documentos = documentos.filter(
+            Q(numero_documento__icontains=q)
+            | Q(proveedor__razon_social__icontains=q)
+            | Q(proveedor__rut__icontains=q)
+        )
+
+    return render(request, 'finanzas/facturas_lista.html', {
+        'titulo': 'Facturas y Documentos Ingresados',
+        'documentos': documentos,
+        'q': q,
+    })
+
+
+@rol_requerido('finanzas')
+@require_GET
+def detalle_factura_finanzas(request, pk):
+    """Permite consultar el desglose y los costos PMP actuales sin modificar datos."""
+    documento = get_object_or_404(
+        DocumentoEntrada.objects.select_related('proveedor', 'registrado_por'),
+        pk=pk,
+    )
+    detalles = documento.detalles.select_related('articulo').all()
+    return render(request, 'finanzas/factura_detalle.html', {
+        'titulo': f'{documento.get_tipo_documento_display()} N° {documento.numero_documento}',
+        'documento': documento,
+        'detalles': detalles,
     })
 
 

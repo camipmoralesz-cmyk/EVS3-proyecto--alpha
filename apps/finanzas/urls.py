@@ -5,6 +5,8 @@ app_name = 'finanzas'
 
 urlpatterns = [
     path('', views.panel_finanzas, name='panel'),
+    path('facturas/', views.lista_facturas_finanzas, name='facturas_lista'),
+    path('facturas/<int:pk>/', views.detalle_factura_finanzas, name='factura_detalle'),
     path('entidades/', views.lista_entidades_finanzas, name='entidades_lista'),
     path('entidades/nueva/', views.crear_entidad_finanzas, name='entidad_crear'),
     path('entidades/<int:pk>/editar/', views.editar_entidad_finanzas, name='entidad_editar'),
