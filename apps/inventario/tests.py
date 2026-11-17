@@ -12,7 +12,7 @@ from apps.inventario.services import (
 
 class CalculoDescuentosTest(TestCase):
     """
-    Pruebas unitarias para la lógica matemática de descuentos sucesivos (HU-01).
+    Pruebas unitarias para la lógica matemática de descuentos sucesivos.
     """
     def test_sin_descuentos(self):
         # Precio base 10.000 sin descuentos -> 10.000
@@ -49,7 +49,7 @@ class CalculoDescuentosTest(TestCase):
 class TransaccionInventarioTest(TestCase):
     """
     Pruebas para verificar la atomicidad y seguridad en la actualización
-    de stock, costos y registro de movimientos de inventario (HU-01).
+    de stock, costos y registro de movimientos de inventario.
     """
     def setUp(self):
         self.categoria = Categoria.objects.create(nombre="Materiales Básicos")

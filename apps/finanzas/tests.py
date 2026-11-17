@@ -7,6 +7,7 @@ from django.urls import reverse
 
 from apps.catalogo.models import Articulo, Categoria
 from apps.entidades.models import ContactoEntidad, CuentaBancaria, Proveedor
+from apps.finanzas.models import ObservacionFactura
 from apps.inventario.models import DetalleDocumento, DocumentoEntrada
 from apps.obras.models import Obra
 
@@ -335,7 +336,33 @@ class FinanzasFacturasTests(BaseFinanzasTestCase):
         self.assertContains(respuesta, '$1250 CLP')
         self.assertNotContains(respuesta, 'Editar')
         self.assertNotContains(respuesta, 'Borrar')
-        self.assertEqual(self.client.post(url).status_code, 405)
+
+    def test_finanzas_reporta_factura_a_gerencia_sin_modificarla(self):
+        self.client.force_login(self.user_finanzas)
+        url = reverse('finanzas:factura_detalle', args=[self.documento.pk])
+
+        respuesta = self.client.post(url, {
+            'texto': 'Revisar el monto neto de este documento.',
+            'numero_documento': 'F-9999',
+        })
+
+        self.assertRedirects(respuesta, url)
+        observacion = ObservacionFactura.objects.get(documento=self.documento)
+        self.assertEqual(observacion.usuario, self.user_finanzas)
+        self.assertEqual(observacion.texto, 'Revisar el monto neto de este documento.')
+        self.assertEqual(observacion.estado, 'PENDIENTE')
+        self.documento.refresh_from_db()
+        self.assertEqual(self.documento.numero_documento, 'F-1001')
+
+    def test_no_guarda_un_reporte_sin_texto(self):
+        self.client.force_login(self.user_finanzas)
+        url = reverse('finanzas:factura_detalle', args=[self.documento.pk])
+
+        respuesta = self.client.post(url, {'texto': '   '})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(ObservacionFactura.objects.filter(documento=self.documento).count(), 0)
+        self.assertContains(respuesta, 'Reportar a Gerencia')
 
     def test_otro_rol_no_puede_consultar_facturas_de_finanzas(self):
         self.client.force_login(self.user_bodega)

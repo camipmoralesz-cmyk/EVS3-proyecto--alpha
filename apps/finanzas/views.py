@@ -6,7 +6,7 @@ from django.db import connection, transaction
 from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Replace
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.entidades.forms import ContactoFormSet, CuentaFormSet, ProveedorForm
 from apps.entidades.models import Proveedor
@@ -14,7 +14,7 @@ from apps.inventario.models import DocumentoEntrada
 from apps.obras.models import Obra
 from apps.usuarios.roles import rol_requerido
 
-from .forms import PresupuestoObraForm
+from .forms import ObservacionFacturaForm, PresupuestoObraForm
 
 
 def _obra_tiene_movimientos(obra):
@@ -62,18 +62,32 @@ def lista_facturas_finanzas(request):
 
 
 @rol_requerido('finanzas')
-@require_GET
+@require_http_methods(['GET', 'POST'])
 def detalle_factura_finanzas(request, pk):
-    """Permite consultar el desglose y los costos PMP actuales sin modificar datos."""
+    """Consulta una factura y permite crear un reporte sin modificarla."""
     documento = get_object_or_404(
         DocumentoEntrada.objects.select_related('proveedor', 'registrado_por'),
         pk=pk,
     )
     detalles = documento.detalles.select_related('articulo').all()
+    if request.method == 'POST':
+        formulario_observacion = ObservacionFacturaForm(request.POST)
+        if formulario_observacion.is_valid():
+            observacion = formulario_observacion.save(commit=False)
+            observacion.documento = documento
+            observacion.usuario = request.user
+            observacion.save()
+            messages.success(request, 'El reporte fue enviado a Gerencia.')
+            return redirect('finanzas:factura_detalle', pk=documento.pk)
+    else:
+        formulario_observacion = ObservacionFacturaForm()
+
     return render(request, 'finanzas/factura_detalle.html', {
         'titulo': f'{documento.get_tipo_documento_display()} N° {documento.numero_documento}',
         'documento': documento,
         'detalles': detalles,
+        'formulario_observacion': formulario_observacion,
+        'observaciones': documento.observaciones_finanzas.select_related('usuario').all(),
     })
 
 

@@ -4,7 +4,7 @@ from apps.catalogo.models import Categoria, Articulo
 from apps.entidades.models import Proveedor
 
 class Command(BaseCommand):
-    help = 'Puebla la base de datos con proveedores, categorías y artículos de prueba para HU-01'
+    help = 'Puebla la base de datos con proveedores, categorías y artículos de prueba'
 
     def handle(self, *args, **options):
         self.stdout.write("Creando proveedores de prueba...")

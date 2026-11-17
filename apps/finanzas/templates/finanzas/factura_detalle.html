@@ -71,5 +71,41 @@
             </table>
         </div>
     </div>
+
+    <div class="card border-secondary bg-dark bg-opacity-50 shadow-sm mt-4">
+        <div class="card-header border-secondary text-info fw-semibold">Reportes a Gerencia</div>
+        <div class="card-body">
+            <form method="post" class="mb-4">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ formulario_observacion.texto.id_for_label }}">
+                        {{ formulario_observacion.texto.label }}
+                    </label>
+                    {{ formulario_observacion.texto }}
+                    {% for error in formulario_observacion.texto.errors %}
+                    <div class="text-danger small mt-1">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-flag me-1"></i> Reportar a Gerencia
+                </button>
+            </form>
+
+            <h2 class="h6 text-secondary">Reportes anteriores</h2>
+            {% for observacion in observaciones %}
+            <div class="border-top border-secondary py-3">
+                <div class="d-flex justify-content-between flex-wrap gap-2 mb-1">
+                    <span class="fw-semibold">{{ observacion.usuario }}</span>
+                    <span class="text-secondary small">
+                        {{ observacion.fecha|date:"d/m/Y H:i" }} · {{ observacion.estado }}
+                    </span>
+                </div>
+                <p class="mb-0">{{ observacion.texto|linebreaksbr }}</p>
+            </div>
+            {% empty %}
+            <p class="text-secondary mb-0">Todavía no hay reportes para esta factura.</p>
+            {% endfor %}
+        </div>
+    </div>
 </div>
 {% endblock %}

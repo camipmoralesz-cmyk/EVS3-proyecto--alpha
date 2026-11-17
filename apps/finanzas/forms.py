@@ -1,5 +1,22 @@
 from django import forms
+from .models import ObservacionFactura
 from apps.obras.models import Obra
+
+
+class ObservacionFacturaForm(forms.ModelForm):
+    class Meta:
+        model = ObservacionFactura
+        fields = ['texto']
+        labels = {
+            'texto': 'Motivo del reporte',
+        }
+        widgets = {
+            'texto': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'Describe qué debe revisar Gerencia.',
+            }),
+        }
 
 
 class PresupuestoObraForm(forms.ModelForm):
