@@ -69,7 +69,6 @@ class ContactoEntidad(models.Model):
 
     class Cargo(models.TextChoices):
         COMERCIAL = 'COMERCIAL', 'Ejecutivo comercial'
-        TECNICO = 'TECNICO', 'Encargado técnico'
         FINANZAS = 'FINANZAS', 'Contacto de finanzas'
         OTRO = 'OTRO', 'Otro'
 

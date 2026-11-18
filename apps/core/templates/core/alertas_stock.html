@@ -1,7 +1,7 @@
 {% extends 'core/base_admin.html' %}
 
 {% block title %}Alertas de Stock | FYAG Logística{% endblock %}
-{% block header_title %}Panel de Monitoreo de Stock Crítico y Mínimo (HU-11){% endblock %}
+{% block header_title %}Panel de Monitoreo de Stock Crítico {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
@@ -10,9 +10,9 @@
             <h1 class="h3 fw-bold text-white mb-1">Panel de Alertas de Stock</h1>
             <p class="text-secondary mb-0">Supervisión gerencial de insumos bajo el umbral mínimo o en quiebre crítico.</p>
         </div>
-        <button onclick="window.print()" class="btn btn-info fw-semibold">
-            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Exportar Informe de Reposición
-        </button>
+        <a href="{% url 'core:exportar_pdf' 'kardex' %}" target="_blank" class="btn btn-outline-info">
+            <i class="bi bi-file-earmark-pdf-fill me-1"></i> Generar Reporte PDF
+        </a>
     </div>
 
     <div class="card border-danger border-opacity-50 mb-4" style="background-color: #1a1d21;">

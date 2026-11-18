@@ -59,7 +59,6 @@ class AnularMovimientoView(LoginRequiredMixin, EsAdministradorGeneralMixin, View
                         valor_unitario=mov_original.valor_unitario,
                         usuario=request.user,
                         obra=mov_original.obra,
-                        tecnico=mov_original.tecnico,
                         justificacion=f"ANULACIÓN de Movimiento #{mov_original.id}. Motivo: {motivo}",
                         es_reversa=True,
                         movimiento_reversado=mov_original

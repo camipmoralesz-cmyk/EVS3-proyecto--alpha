@@ -1,0 +1,156 @@
+/* En la pantalla normal del navegador, el membrete de factura permanece oculto */
+.membrete-factura-pdf {
+    display: none;
+}
+
+/* Reglas exclusivas al generar el PDF / Imprimir */
+@media print {
+    @page {
+        size: letter;
+        margin: 1.5cm;
+    }
+
+    body, main, .flex-grow-1 {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        display: block !important;
+        overflow: visible !important;
+    }
+
+    /* 1. Ocultar barra lateral, barra superior (Panel Crítico y Segregación Activa), botones, buscadores y títulos web */
+    .sidebar-fyag,
+    header,
+    .btn,
+    form,
+    .modal,
+    .alert,
+    .badge.border-info,
+    .d-flex.justify-content-between.align-items-center.mb-4 {
+        display: none !important;
+    }
+
+    /* 2. Mostrar el membrete tipo factura arriba */
+    .membrete-factura-pdf {
+        display: block !important;
+        width: 100%;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #000000;
+        color: #000000 !important;
+    }
+
+    .factura-header-grid {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .factura-logo-box {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .factura-logo-box img {
+        width: 85px;
+        height: auto;
+    }
+
+    .factura-empresa-datos h2 {
+        margin: 0;
+        font-size: 16pt;
+        font-weight: bold;
+        color: #000000 !important;
+    }
+
+    .factura-empresa-datos p {
+        margin: 2px 0;
+        font-size: 9pt;
+        color: #333333 !important;
+    }
+
+    /* Recuadro estilo Factura Chilena arriba a la derecha */
+    .factura-folio-box {
+        border: 2px solid #000000;
+        padding: 10px 16px;
+        text-align: right;
+        min-width: 260px;
+    }
+
+    .factura-folio-box h4 {
+        margin: 0 0 6px 0;
+        font-size: 11pt;
+        font-weight: bold;
+        text-transform: uppercase;
+        border-bottom: 1px solid #000000;
+        padding-bottom: 4px;
+        color: #000000 !important;
+    }
+
+    .factura-folio-box p {
+        margin: 3px 0;
+        font-size: 9.5pt;
+        color: #000000 !important;
+    }
+
+    /* 3. Limpiar tarjetas y dejar solo la tabla en medio con bordes tipo factura */
+    .card {
+        border: none !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .card-header {
+        background-color: #f0f0f0 !important;
+        color: #000000 !important;
+        border: 1px solid #000000 !important;
+        font-weight: bold;
+        padding: 8px 12px !important;
+        margin-bottom: 10px;
+    }
+
+    .card-body {
+        padding: 0 !important;
+    }
+
+    .table, .table-dark {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        color: #000000 !important;
+        background-color: #ffffff !important;
+        margin-top: 10px;
+    }
+
+    .table th, .table td,
+    .table-dark th, .table-dark td {
+        border: 1px solid #000000 !important;
+        padding: 8px 10px !important;
+        color: #000000 !important;
+        background-color: #ffffff !important;
+        font-size: 9.5pt;
+    }
+
+    .table thead th, .table-dark thead th {
+        background-color: #e9ecef !important;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    /* Convertir tarjetas de Alertas de Stock en filas tipo tabla si se imprime desde Alertas */
+    .rounded.bg-dark.border {
+        background-color: #ffffff !important;
+        border: 1px solid #000000 !important;
+        color: #000000 !important;
+        page-break-inside: avoid;
+    }
+
+    .text-white, .text-secondary, .text-info, .text-light, .text-danger, .text-warning {
+        color: #000000 !important;
+    }
+
+    .badge {
+        border: 1px solid #000000 !important;
+        color: #000000 !important;
+        background-color: transparent !important;
+    }
+}

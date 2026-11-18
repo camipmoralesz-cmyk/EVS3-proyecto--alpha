@@ -23,7 +23,6 @@ ROLES_SISTEMA = [
     ('Administrativo Finanzas', 'Administrador / Finanzas'),
     ('Bodega Logistica', 'Administrador de Bodega / Logística'),
     ('Supervisor de Obra', 'Supervisor de Obra'),
-    ('Tecnico', 'Técnico (App Móvil)'),
     ('Auditor', 'Auditor (Consultas)'),
 ]
 
@@ -239,16 +238,16 @@ def consulta_lectura(request, seccion):
     titulo_seccion = "Consulta General"
 
     if seccion == 'catalogo':
-        titulo_seccion = "Catálogo Maestro de Artículos (Solo Lectura)"
+        titulo_seccion = "Catálogo Maestro de Artículos"
         registros = Articulo.objects.all()
     elif seccion == 'facturas':
-        titulo_seccion = "Documentos Tributarios y Facturas (Solo Lectura)"
+        titulo_seccion = "Documentos Tributarios y Facturas"
         for m in apps.get_app_config('inventario').get_models():
             if 'documento' in m.__name__.lower() and 'detalle' not in m.__name__.lower():
                 registros = m.objects.all().order_by('-id')
                 break
     elif seccion == 'entidades':
-        titulo_seccion = "Directorio de Proveedores y Mandantes (Solo Lectura)"
+        titulo_seccion = "Directorio de Proveedores y Mandantes"
         for m in apps.get_app_config('entidades').get_models():
             if 'entidad' in m.__name__.lower() or 'proveedor' in m.__name__.lower():
                 registros = m.objects.all()
@@ -259,3 +258,135 @@ def consulta_lectura(request, seccion):
         'titulo_seccion': titulo_seccion,
         'registros': registros,
     })
+
+import os
+from django.conf import settings
+from django.http import HttpResponse
+from fpdf import FPDF
+
+@login_required
+def exportar_pdf_gerencia(request, tipo_reporte):
+    # 1. Crear documento PDF tamaño Carta
+    pdf = FPDF(orientation='P', unit='mm', format='Letter')
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # 2. Esquina Superior Izquierda: Logo de la Empresa
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo_fyag.png')
+    if os.path.exists(ruta_logo):
+        pdf.image(ruta_logo, x=12, y=10, w=26)
+
+    # Datos de la empresa junto al logo
+    pdf.set_xy(42, 12)
+    pdf.set_font('Helvetica', 'B', 13)
+    pdf.cell(90, 6, 'FRIO Y AGROINDUSTRIA SPA', ln=1)
+    pdf.set_x(42)
+    pdf.set_font('Helvetica', '', 9)
+    pdf.cell(90, 5, 'Ingenieria en Refrigeracion, Agroindustria y Logistica', ln=1)
+    pdf.set_x(42)
+    pdf.cell(90, 5, 'Casa Matriz - Chillan, Region de Nuble', ln=1)
+
+    # 3. Esquina Superior Derecha: Recuadro tipo Factura (Fecha, Hora y Administrador)
+    ahora = timezone.localtime(timezone.now())
+    admin_nombre = request.user.get_full_name() or request.user.username
+
+    # Dibuja el rectángulo del recuadro de factura (x=135, y=10, ancho=70, alto=28)
+    pdf.set_draw_color(0, 0, 0)
+    pdf.set_line_width(0.4)
+    pdf.rect(135, 10, 70, 28)
+
+    pdf.set_xy(137, 12)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.cell(66, 5, 'ORDEN / REPORTE DE GERENCIA', border='B', ln=1, align='C')
+
+    pdf.set_x(137)
+    pdf.set_font('Helvetica', '', 8.5)
+    pdf.cell(66, 5, f'Fecha Emision: {ahora.strftime("%d/%m/%Y")}', ln=1)
+    pdf.set_x(137)
+    pdf.cell(66, 5, f'Hora Emision:  {ahora.strftime("%H:%M:%S")} hrs', ln=1)
+    pdf.set_x(137)
+    pdf.set_font('Helvetica', 'B', 8.5)
+    pdf.cell(66, 5, f'Autorizado por: {admin_nombre[:22]}', ln=1)
+    pdf.set_x(137)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.cell(66, 4, 'Cargo: Administrador General', ln=1)
+
+    # Línea separadora inferior del membrete
+    pdf.ln(10)
+    pdf.set_y(44)
+    pdf.line(12, 44, 205, 44)
+    pdf.ln(6)
+
+    # 4. Cuerpo Central: Tabla estilo Factura según el reporte solicitado
+    if tipo_reporte == 'alertas':
+        # Título de la tabla
+        pdf.set_font('Helvetica', 'B', 11)
+        pdf.cell(0, 8, 'DETALLE DE INSUMOS EN ESTADO DE ALERTA (ORDEN DE REPOSICION)', ln=1, align='C')
+        pdf.ln(2)
+
+        # Encabezados de la tabla
+        pdf.set_fill_color(230, 230, 230)
+        pdf.set_font('Helvetica', 'B', 9)
+        pdf.cell(32, 8, 'CODIGO', border=1, align='C', fill=True)
+        pdf.cell(85, 8, 'INSUMO / MATERIAL', border=1, align='L', fill=True)
+        pdf.cell(25, 8, 'STOCK ACT.', border=1, align='C', fill=True)
+        pdf.cell(25, 8, 'STOCK MIN.', border=1, align='C', fill=True)
+        pdf.cell(26, 8, 'ESTADO', border=1, align='C', fill=True, ln=1)
+
+        # Filas de datos desde PostgreSQL
+        articulos = Articulo.objects.filter(stock_actual__lte=F('stock_minimo'))
+        pdf.set_font('Helvetica', '', 9)
+        if articulos.exists():
+            for art in articulos:
+                estado = 'QUIEBRE (0)' if art.stock_actual == 0 else 'BAJO MINIMO'
+                codigo = str(getattr(art, 'codigo_interno', art.id))[:15]
+                nombre = str(art.nombre)[:42]
+                pdf.cell(32, 7, codigo, border=1, align='C')
+                pdf.cell(85, 7, f' {nombre}', border=1, align='L')
+                pdf.cell(25, 7, str(art.stock_actual), border=1, align='C')
+                pdf.cell(25, 7, str(art.stock_minimo), border=1, align='C')
+                pdf.cell(26, 7, estado, border=1, align='C', ln=1)
+        else:
+            pdf.cell(193, 10, 'Todos los insumos superan el stock minimo configurado.', border=1, align='C', ln=1)
+
+        nombre_archivo = f"Orden_Reposicion_FYAG_{ahora.strftime('%d%m%Y')}.pdf"
+
+    else:
+        # Reporte de Auditoría Kardex
+        pdf.set_font('Helvetica', 'B', 11)
+        pdf.cell(0, 8, 'AUDITORIA INTEGRAL DEL KARDEX Y CONTRA-ASIENTOS', ln=1, align='C')
+        pdf.ln(2)
+
+        # Encabezados de la tabla
+        pdf.set_fill_color(230, 230, 230)
+        pdf.set_font('Helvetica', 'B', 8.5)
+        pdf.cell(16, 8, 'ID', border=1, align='C', fill=True)
+        pdf.cell(52, 8, 'PRODUCTO', border=1, align='L', fill=True)
+        pdf.cell(38, 8, 'OPERACION', border=1, align='C', fill=True)
+        pdf.cell(18, 8, 'CANT.', border=1, align='C', fill=True)
+        pdf.cell(69, 8, 'REFERENCIA / BITACORA', border=1, align='L', fill=True, ln=1)
+
+        ModeloKardex = obtener_modelo_kardex()
+        movimientos = ModeloKardex.objects.select_related('articulo').all().order_by('-id')[:50] if ModeloKardex else []
+
+        pdf.set_font('Helvetica', '', 8)
+        if movimientos:
+            for mov in movimientos:
+                tipo_op = str(getattr(mov, 'tipo_movimiento', getattr(mov, 'tipo', 'MOV')))[:20]
+                ref = str(getattr(mov, 'documento', getattr(mov, 'referencia', '-')))[:38]
+                prod = str(mov.articulo)[:26]
+                pdf.cell(16, 7, f'#{mov.id}', border=1, align='C')
+                pdf.cell(52, 7, f' {prod}', border=1, align='L')
+                pdf.cell(38, 7, tipo_op, border=1, align='C')
+                pdf.cell(18, 7, str(mov.cantidad), border=1, align='C')
+                pdf.cell(69, 7, f' {ref}', border=1, align='L', ln=1)
+        else:
+            pdf.cell(193, 10, 'Sin movimientos registrados en el Kardex.', border=1, align='C', ln=1)
+
+        nombre_archivo = f"Auditoria_Kardex_FYAG_{ahora.strftime('%d%m%Y')}.pdf"
+
+    # 5. Entregar el PDF generado al navegador
+    pdf_bytes = bytes(pdf.output())
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{nombre_archivo}"'
+    return response

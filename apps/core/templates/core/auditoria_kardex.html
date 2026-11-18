@@ -1,7 +1,7 @@
 {% extends 'core/base_admin.html' %}
 
 {% block title %}Auditoría y Anulación | FYAG Logística{% endblock %}
-{% block header_title %}Auditoría Integral del Kardex y Contra-Asientos (HU-12){% endblock %}
+{% block header_title %}Auditoría Integral del Kardex{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
@@ -10,9 +10,9 @@
             <h1 class="h3 fw-bold text-white mb-1">Auditoría del Kardex (Traza Cronológica)</h1>
             <p class="text-secondary mb-0">Registro inmutable de operaciones y reversa controlada mediante contra-asiento.</p>
         </div>
-        <button onclick="window.print()" class="btn btn-outline-info">
-            <i class="bi bi-file-earmark-pdf me-1"></i> Exportar a PDF / Imprimir
-        </button>
+        <a href="{% url 'core:exportar_pdf' 'alertas' %}" target="_blank" class="btn btn-info fw-semibold">
+            <i class="bi bi-file-earmark-pdf-fill me-1"></i> Generar Orden PDF
+        </a>
     </div>
 
     {% if messages %}
