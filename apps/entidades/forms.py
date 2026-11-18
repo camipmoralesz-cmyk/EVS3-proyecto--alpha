@@ -3,8 +3,9 @@
 # es decir, varios sub-formularios hijos dentro del formulario de la ficha.
 
 from django import forms
-from django.forms import inlineformset_factory
+from django.forms import BaseInlineFormSet, inlineformset_factory
 
+from apps.finanzas.utils import enmascarar_numero_cuenta, puede_ver_cuentas_bancarias
 from .models import ContactoEntidad, CuentaBancaria, Proveedor
 from .validators import rut_canonico, validar_rut
 
@@ -71,6 +72,18 @@ class ContactoForm(forms.ModelForm):
 
 
 class CuentaForm(forms.ModelForm):
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._numero_cuenta_oculto = (
+            self.instance.pk is not None
+            and not puede_ver_cuentas_bancarias(user)
+        )
+        if self._numero_cuenta_oculto:
+            self.fields['numero_cuenta'].disabled = True
+            self.initial['numero_cuenta'] = enmascarar_numero_cuenta(
+                self.instance.numero_cuenta,
+            )
+
     class Meta:
         model = CuentaBancaria
         fields = ['banco', 'tipo_cuenta', 'numero_cuenta', 'email_pago']
@@ -80,6 +93,22 @@ class CuentaForm(forms.ModelForm):
             'numero_cuenta': forms.TextInput(attrs={'class': 'form-control', 'inputmode': 'numeric'}),
             'email_pago': forms.EmailInput(attrs={'class': 'form-control'}),
         }
+
+    def clean_numero_cuenta(self):
+        if self._numero_cuenta_oculto:
+            return self.instance.numero_cuenta
+        return self.cleaned_data['numero_cuenta']
+
+
+class BaseCuentaFormSet(BaseInlineFormSet):
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs['user'] = self.user
+        return kwargs
 
 
 # Formsets inline: manejan "N contactos" y "N cuentas" de UNA ficha.
@@ -97,6 +126,7 @@ CuentaFormSet = inlineformset_factory(
     Proveedor,
     CuentaBancaria,
     form=CuentaForm,
+    formset=BaseCuentaFormSet,
     extra=1,
     can_delete=True,
 )

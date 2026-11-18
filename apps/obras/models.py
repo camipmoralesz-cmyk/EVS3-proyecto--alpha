@@ -6,6 +6,7 @@ from apps.entidades.models import Proveedor
 
 
 class Obra(models.Model):
+    objects = models.Manager()
 
     class Estado(models.TextChoices):
         ACTIVA = 'ACTIVA', 'Activa'

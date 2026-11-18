@@ -5,6 +5,8 @@ from apps.catalogo.models import Articulo
 from apps.entidades.models import Proveedor
 
 class DocumentoEntrada(models.Model):
+    objects = models.Manager()
+
     TIPO_FACTURA = 'FACTURA'
     TIPO_BOLETA = 'BOLETA'
     TIPO_GUIA = 'GUIA_DESPACHO'

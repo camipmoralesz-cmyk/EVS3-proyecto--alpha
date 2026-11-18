@@ -35,6 +35,8 @@ class ObservacionFactura(models.Model):
 
 
 class PagoProveedor(models.Model):
+    objects = models.Manager()
+
     class MedioPago(models.TextChoices):
         TRANSFERENCIA = 'TRANSFERENCIA', 'Transferencia'
         CHEQUE = 'CHEQUE', 'Cheque'
@@ -88,6 +90,8 @@ class PagoProveedor(models.Model):
 
 
 class SaldoInicialEmpresa(models.Model):
+    objects = models.Manager()
+
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     monto = models.DecimalField(
         max_digits=14,

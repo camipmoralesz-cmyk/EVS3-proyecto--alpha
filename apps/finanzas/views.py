@@ -38,12 +38,24 @@ def panel_finanzas(request):
         estado=PagoProveedor.Estado.PAGADO,
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
     saldo_disponible = saldo_inicial.monto - pagos_efectuados
+    facturas_count = DocumentoEntrada.objects.filter(
+        tipo_documento=DocumentoEntrada.TIPO_FACTURA,
+    ).count()
+    pagos_pendientes_count = PagoProveedor.objects.filter(
+        estado=PagoProveedor.Estado.PENDIENTE,
+    ).count()
+    presupuestos_total = Obra.objects.aggregate(
+        total=Sum('presupuesto_total'),
+    )['total'] or Decimal('0.00')
 
     return render(request, 'finanzas/panel.html', {
         'titulo': 'Panel de Finanzas',
         'saldo_inicial': saldo_inicial.monto,
         'pagos_efectuados': pagos_efectuados,
         'saldo_disponible': saldo_disponible,
+        'facturas_count': facturas_count,
+        'pagos_pendientes_count': pagos_pendientes_count,
+        'presupuestos_total': presupuestos_total,
     })
 
 
@@ -223,7 +235,7 @@ def _guardar_entidad_finanzas(request, instancia=None):
     if request.method == 'POST':
         form = ProveedorForm(request.POST, instance=entidad)
         contactos_formset = ContactoFormSet(request.POST, instance=entidad)
-        cuentas_formset = CuentaFormSet(request.POST, instance=entidad)
+        cuentas_formset = CuentaFormSet(request.POST, instance=entidad, user=request.user)
 
         form_valido = form.is_valid()
         contactos_validos = contactos_formset.is_valid()
@@ -245,7 +257,7 @@ def _guardar_entidad_finanzas(request, instancia=None):
     else:
         form = ProveedorForm(instance=entidad)
         contactos_formset = ContactoFormSet(instance=entidad)
-        cuentas_formset = CuentaFormSet(instance=entidad)
+        cuentas_formset = CuentaFormSet(instance=entidad, user=request.user)
 
     contexto = {
         'titulo': f"Editar Ficha: {instancia.razon_social}" if es_edicion else "Nueva Ficha de Proveedor / Mandante",
