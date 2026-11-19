@@ -41,8 +41,8 @@
                         {% for obra in obras %}
                         <tr>
                             <td class="fw-semibold text-white">{{ obra.nombre }}</td>
-                            <td>{{ obra.mandante.razon_social|default:obra.mandante.nombre }}</td>
-                            <td class="text-center font-monospace text-success">$ {{ obra.presupuesto_total|floatsformat:0 }}</td>
+                            <td>{{ obra.mandante.razon_social }}</td>
+                            <td class="text-center font-monospace text-success">$ {{ obra.presupuesto_total|floatformat:0 }}</td>
                             <td class="text-center">
                                 <span class="badge {% if obra.estado == 'ACTIVA' %}bg-success{% else %}bg-secondary{% endif %}">
                                     {{ obra.get_estado_display }}

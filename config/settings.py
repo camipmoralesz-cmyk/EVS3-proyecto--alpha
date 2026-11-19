@@ -144,6 +144,5 @@ MAILERS = {
 }
 
 LOGIN_URL = 'usuarios:login'
-LOGIN_REDIRECT_URL = '/inventario/stock/'
+LOGIN_REDIRECT_URL = 'usuarios:login_por_rol'
 LOGOUT_REDIRECT_URL = 'usuarios:login'
-LOGIN_REDIRECT_URL = '/'

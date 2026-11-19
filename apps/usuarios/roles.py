@@ -38,6 +38,22 @@ ROLES = [
 
 ROLES_POR_ID = {r['id']: r for r in ROLES}
 
+# Equivalencias entre IDs de rol (LoginForm) y nombres de Grupos en Django
+ALIAS_ROLES = {
+    'bodega': ('bodega', 'Bodega Logistica', 'Encargado de Bodega / Logística'),
+    'finanzas': ('finanzas', 'Administrativo Finanzas', 'Administrador / Finanzas'),
+    'supervisor': ('supervisor', 'Supervisor de Obra', 'Supervisor de Obras'),
+    'gerencia': ('gerencia', 'Administrador General', 'Administrador General / Gerencia'),
+}
+
+
+def _nombres_grupo_para(ids):
+    nombres = set()
+    for rol_id in ids:
+        nombres.add(rol_id)
+        nombres.update(ALIAS_ROLES.get(rol_id, ()))
+    return nombres
+
 
 def tiene_rol(user, *ids):
     """True si el usuario pertenece a alguno de los roles indicados."""
@@ -45,7 +61,7 @@ def tiene_rol(user, *ids):
         return False
     if user.is_superuser:
         return True
-    return user.groups.filter(name__in=ids).exists()
+    return user.groups.filter(name__in=_nombres_grupo_para(ids)).exists()
 
 
 def roles_de(user):
@@ -55,7 +71,7 @@ def roles_de(user):
     if user.is_superuser:
         return list(ROLES)
     grupos = set(user.groups.values_list('name', flat=True))
-    return [r for r in ROLES if r['id'] in grupos]
+    return [r for r in ROLES if grupos.intersection(_nombres_grupo_para([r['id']]))]
 
 
 def rol_requerido(*ids):
