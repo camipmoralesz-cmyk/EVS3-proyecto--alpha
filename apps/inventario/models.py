@@ -149,16 +149,24 @@ class MovimientoInventario(models.Model):
     TIPO_ENTRADA = 'ENTRADA'
     TIPO_SALIDA = 'SALIDA'
     TIPO_AJUSTE = 'AJUSTE'
+    TIPO_ANULACION = 'ANULACION'
+    TIPO_INGRESO_SISTEMA = 'INGRESO_SISTEMA'
+    TIPO_SALIDA_SISTEMA = 'SALIDA_SISTEMA'
 
     TIPOS_MOVIMIENTO = [
-        (TIPO_ENTRADA, 'Entrada de Mercadería'),
-        (TIPO_SALIDA, 'Salida / Ajuste Nota de Crédito'),
+        (TIPO_ENTRADA, 'Ingreso de Materiales'),
+        (TIPO_SALIDA, 'Salida de Materiales'),
         (TIPO_AJUSTE, 'Ajuste de Inventario'),
+        (TIPO_ANULACION, 'Contra-Asiento / Anulación'),
+        (TIPO_INGRESO_SISTEMA, 'Ingreso de Personal al Sistema'),
+        (TIPO_SALIDA_SISTEMA, 'Salida de Personal del Sistema'),
     ]
 
     articulo = models.ForeignKey(
         Articulo,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name='movimientos_inventario',
         verbose_name="Artículo"
     )
@@ -171,26 +179,30 @@ class MovimientoInventario(models.Model):
         verbose_name="Documento Origen"
     )
     tipo_movimiento = models.CharField(
-        max_length=15,
+        max_length=25,
         choices=TIPOS_MOVIMIENTO,
         verbose_name="Tipo de Movimiento"
     )
     cantidad = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        default=Decimal('0.00'),
         verbose_name="Cantidad"
     )
     stock_anterior = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        default=Decimal('0.00'),
         verbose_name="Stock Anterior"
     )
     stock_posterior = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        default=Decimal('0.00'),
         verbose_name="Stock Posterior"
     )
     costo_unitario = models.IntegerField(
+        default=0,
         verbose_name="Costo Unitario Aplicado"
     )
     fecha = models.DateTimeField(
@@ -207,7 +219,7 @@ class MovimientoInventario(models.Model):
     referencia = models.CharField(
         max_length=255,
         blank=True,
-        verbose_name="Referencia / Glosa"
+        verbose_name="Referencia / Motivo"
     )
 
     class Meta:
@@ -216,4 +228,6 @@ class MovimientoInventario(models.Model):
         ordering = ['-fecha']
 
     def __str__(self):
-        return f"[{self.tipo_movimiento}] {self.articulo.codigo_interno} ({self.cantidad}) - {self.fecha.strftime('%Y-%m-%d %H:%M')}"
+        ref_art = self.articulo.codigo_interno if self.articulo else 'SISTEMA'
+        fecha_txt = self.fecha.strftime('%Y-%m-%d %H:%M') if self.fecha else ''
+        return f"[{self.tipo_movimiento}] {ref_art} ({self.cantidad}) - {fecha_txt}"

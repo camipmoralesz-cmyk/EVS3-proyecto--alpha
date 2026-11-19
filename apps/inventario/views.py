@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_GET
@@ -11,6 +12,7 @@ from .models import DocumentoEntrada, DetalleDocumento, MovimientoInventario
 from .forms import DocumentoEntradaForm
 from .services import registrar_documento_entrada, calcular_descuentos_sucesivos, calcular_subtotal_linea
 
+@login_required
 def registro_documento(request):
     """
     Vista para registrar un documento de entrada con múltiples líneas de ítems
@@ -127,11 +129,12 @@ def inventario_stock(request):
     })
 
 
+@login_required
 def historial_movimientos(request):
     """
     Log de auditoría de movimientos de inventario.
     """
-    movimientos = MovimientoInventario.objects.select_related('articulo', 'documento', 'usuario').all()[:100]
+    movimientos = MovimientoInventario.objects.select_related('articulo', 'documento', 'usuario').all().order_by('-fecha', '-id')[:100]
     return render(request, 'inventario/movimientos.html', {
         'movimientos': movimientos
     })

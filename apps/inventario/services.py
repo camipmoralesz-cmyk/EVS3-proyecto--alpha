@@ -49,9 +49,13 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
         raise ValidationError("El documento debe contener al menos una línea de detalle.")
 
     # 1. Crear encabezado del documento
+    tipo_doc = datos_documento['tipo_documento']
+    if tipo_doc == 'GUIA':
+        tipo_doc = DocumentoEntrada.TIPO_GUIA
+
     documento = DocumentoEntrada.objects.create(
         proveedor=datos_documento['proveedor'],
-        tipo_documento=datos_documento['tipo_documento'],
+        tipo_documento=tipo_doc,
         numero_documento=datos_documento['numero_documento'].strip(),
         fecha_emision=datos_documento['fecha_emision'],
         observaciones=datos_documento.get('observaciones', ''),
@@ -66,10 +70,11 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
     for linea in lineas_detalle:
         articulo_id = linea['articulo_id']
         cantidad = Decimal(str(linea['cantidad']))
-        precio_base = int(linea['precio_unitario_base'])
-        d1 = Decimal(str(linea.get('descuento_1_porcentaje', 0) or 0))
-        d2 = Decimal(str(linea.get('descuento_2_porcentaje', 0) or 0))
-        d3 = Decimal(str(linea.get('descuento_3_porcentaje', 0) or 0))
+        precio_raw = linea.get('precio_unitario_base', linea.get('precio_unitario', 0))
+        precio_base = int(Decimal(str(precio_raw or 0)))
+        d1 = Decimal(str(linea.get('descuento_1_porcentaje', linea.get('descuento_1', 0)) or 0))
+        d2 = Decimal(str(linea.get('descuento_2_porcentaje', linea.get('descuento_2', 0)) or 0))
+        d3 = Decimal(str(linea.get('descuento_3_porcentaje', linea.get('descuento_3', 0)) or 0))
 
         if cantidad <= 0:
             raise ValidationError(f"La cantidad debe ser mayor a cero en todos los artículos.")
@@ -134,8 +139,8 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
             documento=documento,
             tipo_movimiento=tipo_mov,
             cantidad=cantidad,
-            saldo_resultante=nuevo_stock,
-            valor_unitario=precio_final,
+            stock_anterior=stock_anterior,
+            stock_posterior=nuevo_stock,
             costo_unitario=precio_final,
             usuario=usuario,
             referencia=glosa

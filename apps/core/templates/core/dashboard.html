@@ -79,7 +79,7 @@
                         <h5 class="card-title text-info fw-bold mb-0">
                             <i class="bi bi-journal-text me-2"></i>Últimos Movimientos de Kardex
                         </h5>
-                        <a href="#" class="btn btn-sm btn-outline-info">Ver historial completo</a>
+                        <a href="{% url 'core:auditoria_kardex' %}" class="btn btn-sm btn-outline-info">Ver historial completo</a>
                     </div>
 
                     <div class="table-responsive">
@@ -87,26 +87,30 @@
                             <thead>
                                 <tr class="text-secondary small">
                                     <th>Código</th>
-                                    <th>Artículo / Insumo</th>
-                                    <th>Tipo</th>
+                                    <th>Artículo / Recurso</th>
+                                    <th>Personal</th>
+                                    <th>Operación</th>
                                     <th>Cantidad</th>
-                                    <th>Destino / Origen</th>
+                                    <th>Motivo / Ref.</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for mov in ultimos_movimientos %}
                                 <tr>
-                                    <td><code>{{ mov.articulo.codigo }}</code></td>
-                                    <td>{{ mov.articulo.nombre }}</td>
+                                    <td><code>{% if mov.articulo %}{{ mov.articulo.codigo_interno }}{% else %}ACCESO{% endif %}</code></td>
+                                    <td>{% if mov.articulo %}{{ mov.articulo.nombre }}{% else %}<span class="text-info">Control de Acceso</span>{% endif %}</td>
+                                    <td class="small text-info">{{ mov.usuario.username|default:"Sistema" }}</td>
                                     <td>
-                                        <span class="badge bg-primary">{{ mov.tipo }}</span>
+                                        <span class="badge {% if mov.tipo_movimiento == 'SALIDA' %}bg-danger{% elif mov.tipo_movimiento == 'ENTRADA' %}bg-success{% elif mov.tipo_movimiento == 'ANULACION' %}bg-warning text-dark{% elif mov.tipo_movimiento == 'INGRESO_SISTEMA' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                            {{ mov.get_tipo_movimiento_display }}
+                                        </span>
                                     </td>
-                                    <td>{{ mov.cantidad }}</td>
-                                    <td>{{ mov.referencia }}</td>
+                                    <td>{% if mov.articulo %}{{ mov.cantidad }}{% else %}—{% endif %}</td>
+                                    <td class="small">{{ mov.referencia|default:"-"|truncatechars:40 }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-secondary py-4">
+                                    <td colspan="6" class="text-center text-secondary py-4">
                                         <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                                         Aún no hay movimientos registrados en el Kardex.
                                     </td>
@@ -137,7 +141,7 @@
                             <span class="badge bg-warning text-dark rounded-pill">0</span>
                         </li>
                         <li class="list-group-item bg-transparent text-light d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-25">
-                            <span>Mermas reportadas (mes)</span>
+                            <span>Mermas reportadas </span>
                             <span class="badge bg-info text-dark rounded-pill">0</span>
                         </li>
                     </ul>
@@ -145,7 +149,7 @@
                     <!-- Botones de acción rápida en bodega -->
                     <div class="mt-auto d-grid gap-2">
                         <a href="#" class="btn btn-outline-primary">
-                            <i class="bi bi-plus-circle me-2"></i>Registrar Compra (Factura)
+                            <i class="bi bi-plus-circle me-2"></i>Registrar Compra 
                         </a>
                         <a href="#" class="btn btn-outline-warning">
                             <i class="bi bi-box-arrow-up-right me-2"></i>Despachar a Obra

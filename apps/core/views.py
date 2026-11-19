@@ -1,22 +1,19 @@
+from decimal import Decimal, InvalidOperation
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.apps import apps
 from django.utils import timezone
 
 from apps.catalogo.models import Articulo
+from apps.inventario.models import MovimientoInventario
 
-# Detecta automáticamente el modelo de Kardex/Movimientos en la app inventario
+# Mantiene compatibilidad retornando directamente el modelo Kardex de inventario
 def obtener_modelo_kardex():
-    app_models = apps.get_app_config('inventario').get_models()
-    for m in app_models:
-        nombre = m.__name__.lower()
-        if 'movimiento' in nombre or 'kardex' in nombre or 'cardex' in nombre:
-            return m
-    return None
+    return MovimientoInventario
 
 ROLES_SISTEMA = [
     ('Administrador General', 'Administrador General / Gerencia'),
@@ -35,13 +32,14 @@ def dashboard(request):
     articulos_criticos = articulos.filter(stock_actual__lte=F('stock_minimo'))
     alertas_stock = articulos_criticos.count()
     
-    ModeloKardex = obtener_modelo_kardex()
-    if ModeloKardex:
-        ultimos_movimientos = ModeloKardex.objects.select_related('articulo').order_by('-id')[:8]
-        movimientos_hoy = ModeloKardex.objects.count()
-    else:
-        ultimos_movimientos = []
-        movimientos_hoy = 0
+    ultimos_movimientos = (
+        MovimientoInventario.objects
+        .select_related('articulo', 'usuario', 'documento')
+        .order_by('-fecha', '-id')[:8]
+    )
+    movimientos_hoy = MovimientoInventario.objects.filter(
+        fecha__date=timezone.localdate()
+    ).count()
 
     context = {
         'total_articulos': total_articulos,
@@ -136,72 +134,172 @@ def panel_alertas_stock(request):
 @login_required
 def auditoria_kardex(request):
     q = request.GET.get('q', '').strip()
-    ModeloKardex = obtener_modelo_kardex()
-    
-    if ModeloKardex:
-        movimientos = ModeloKardex.objects.select_related('articulo').all().order_by('-id')
-        if q:
-            movimientos = movimientos.filter(articulo__nombre__icontains=q)
-    else:
-        movimientos = []
+    tipo = request.GET.get('tipo', '').strip()
+
+    # Consulta global sin filtros restrictivos por usuario/estado para que
+    # el Administrador General visualice todos los movimientos y accesos.
+    movimientos = (
+        MovimientoInventario.objects
+        .select_related('articulo', 'usuario', 'documento')
+        .prefetch_related('usuario__groups')
+        .all()
+        .order_by('-fecha', '-id')
+    )
+
+    if q:
+        movimientos = movimientos.filter(
+            Q(articulo__nombre__icontains=q) |
+            Q(articulo__codigo_interno__icontains=q) |
+            Q(usuario__username__icontains=q) |
+            Q(usuario__first_name__icontains=q) |
+            Q(usuario__last_name__icontains=q) |
+            Q(referencia__icontains=q) |
+            Q(tipo_movimiento__icontains=q)
+        )
+
+    if tipo:
+        movimientos = movimientos.filter(tipo_movimiento=tipo)
+
+    articulos = Articulo.objects.all().order_by('nombre')
 
     return render(request, 'core/auditoria_kardex.html', {
         'movimientos': movimientos,
-        'q': q
+        'q': q,
+        'tipo': tipo,
+        'tipos_movimiento': MovimientoInventario.TIPOS_MOVIMIENTO,
+        'articulos': articulos,
     })
 
 
 @login_required
 @transaction.atomic
-def anular_movimiento_kardex(request, mov_id):
-    ModeloKardex = obtener_modelo_kardex()
-    if not ModeloKardex:
-        messages.error(request, 'Modelo de Kardex no encontrado.')
+def registrar_movimiento_kardex(request):
+    if request.method != 'POST':
         return redirect('core:auditoria_kardex')
 
-    mov_original = get_object_or_404(ModeloKardex, pk=mov_id)
-    
+    articulo_id = request.POST.get('articulo_id')
+    tipo_mov = request.POST.get('tipo_movimiento', '').strip()
+    cantidad_raw = request.POST.get('cantidad', '').strip()
+    motivo = request.POST.get('motivo', '').strip()
+
+    if tipo_mov not in (MovimientoInventario.TIPO_ENTRADA, MovimientoInventario.TIPO_SALIDA):
+        messages.error(request, 'Tipo de operación inválido. Seleccione Ingreso o Salida de Materiales.')
+        return redirect('core:auditoria_kardex')
+
+    if not articulo_id or not motivo:
+        messages.error(request, 'Debe seleccionar un producto e ingresar el motivo obligatorio.')
+        return redirect('core:auditoria_kardex')
+
+    try:
+        cantidad = Decimal(cantidad_raw)
+        if cantidad <= 0:
+            raise InvalidOperation
+    except (InvalidOperation, ValueError):
+        messages.error(request, 'La cantidad debe ser un número mayor a cero.')
+        return redirect('core:auditoria_kardex')
+
+    articulo = get_object_or_404(Articulo.objects.select_for_update(), pk=articulo_id)
+    stock_anterior = articulo.stock_actual
+
+    if tipo_mov == MovimientoInventario.TIPO_SALIDA:
+        if stock_anterior < cantidad:
+            messages.error(
+                request,
+                f'Stock insuficiente para "{articulo.nombre}". Stock actual: {stock_anterior}, solicitado: {cantidad}.'
+            )
+            return redirect('core:auditoria_kardex')
+        nuevo_stock = stock_anterior - cantidad
+    else:
+        nuevo_stock = stock_anterior + cantidad
+
+    articulo.stock_actual = nuevo_stock
+    articulo.save(update_fields=['stock_actual'])
+
+    mov = MovimientoInventario.objects.create(
+        articulo=articulo,
+        documento=None,
+        tipo_movimiento=tipo_mov,
+        cantidad=cantidad,
+        stock_anterior=stock_anterior,
+        stock_posterior=nuevo_stock,
+        costo_unitario=articulo.pmp_costo_actual or articulo.ultimo_costo_compra or 0,
+        usuario=request.user,
+        referencia=motivo[:255],
+    )
+
+    messages.success(
+        request,
+        f'Movimiento #{mov.id} ({mov.get_tipo_movimiento_display()}) registrado por {request.user.username}. '
+        f'Stock de {articulo.nombre}: {stock_anterior} → {nuevo_stock}.'
+    )
+    return redirect('core:auditoria_kardex')
+
+
+@login_required
+@transaction.atomic
+def anular_movimiento_kardex(request, mov_id):
+    mov_original = get_object_or_404(
+        MovimientoInventario.objects.select_for_update().select_related('articulo', 'documento'),
+        pk=mov_id,
+    )
+
     if request.method == 'POST':
         motivo = request.POST.get('motivo', '').strip()
         if not motivo:
             messages.error(request, 'El motivo de ajuste es obligatorio para generar un contra-asiento.')
             return redirect('core:auditoria_kardex')
 
-        articulo = mov_original.articulo
+        if mov_original.articulo is None:
+            messages.warning(request, 'Los registros de ingreso/salida de personal son inmutables y no requieren contra-asiento de stock.')
+            return redirect('core:auditoria_kardex')
+
+        if mov_original.tipo_movimiento == MovimientoInventario.TIPO_ANULACION:
+            messages.warning(request, 'Este registro ya corresponde a un contra-asiento de anulación.')
+            return redirect('core:auditoria_kardex')
+
+        articulo = Articulo.objects.select_for_update().get(pk=mov_original.articulo_id)
         cantidad = mov_original.cantidad
-        tipo_orig = str(getattr(mov_original, 'tipo_movimiento', getattr(mov_original, 'tipo', ''))).upper()
+        stock_anterior = articulo.stock_actual
+        tipo_orig = str(mov_original.tipo_movimiento).upper()
 
         if 'ENTRADA' in tipo_orig or 'INGRESO' in tipo_orig:
-            articulo.stock_actual -= cantidad
-            tipo_reversa = 'CONTRA_ASIENTO_INGRESO'
+            nuevo_stock = stock_anterior - cantidad
+            if nuevo_stock < 0:
+                messages.error(
+                    request,
+                    f'No se puede anular el movimiento #{mov_original.id}: el stock de "{articulo.nombre}" quedaría negativo.'
+                )
+                return redirect('core:auditoria_kardex')
+            direccion = 'REVERSA ENTRADA'
         else:
-            articulo.stock_actual += cantidad
-            tipo_reversa = 'CONTRA_ASIENTO_EGRESO'
-        articulo.save()
+            nuevo_stock = stock_anterior + cantidad
+            direccion = 'REVERSA SALIDA'
 
-        ahora_str = timezone.now().strftime('%d/%m/%Y %H:%M')
-        bitacora_detalle = f"ANULADO ID#{mov_original.id} | Por: {request.user.username} | Fecha: {ahora_str} | Motivo: {motivo}"
+        articulo.stock_actual = nuevo_stock
+        articulo.save(update_fields=['stock_actual'])
 
-        nuevo_mov = ModeloKardex()
-        nuevo_mov.articulo = articulo
-        nuevo_mov.cantidad = cantidad
-        if hasattr(nuevo_mov, 'tipo_movimiento'):
-            nuevo_mov.tipo_movimiento = tipo_reversa
-        elif hasattr(nuevo_mov, 'tipo'):
-            nuevo_mov.tipo = tipo_reversa
-            
-        if hasattr(nuevo_mov, 'documento'):
-            nuevo_mov.documento = bitacora_detalle
-        elif hasattr(nuevo_mov, 'referencia'):
-            nuevo_mov.referencia = bitacora_detalle
-            
-        if hasattr(nuevo_mov, 'usuario'):
-            nuevo_mov.usuario = request.user
-        nuevo_mov.save()
+        ahora_str = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M')
+        bitacora_detalle = (
+            f"ANULADO ID#{mov_original.id} ({direccion}) | Por: {request.user.username} | "
+            f"Fecha: {ahora_str} | Motivo: {motivo}"
+        )
+
+        nuevo_mov = MovimientoInventario.objects.create(
+            articulo=articulo,
+            documento=mov_original.documento,
+            tipo_movimiento=MovimientoInventario.TIPO_ANULACION,
+            cantidad=cantidad,
+            stock_anterior=stock_anterior,
+            stock_posterior=nuevo_stock,
+            costo_unitario=mov_original.costo_unitario or articulo.pmp_costo_actual or 0,
+            usuario=request.user,
+            referencia=bitacora_detalle[:255],
+        )
 
         messages.success(
-            request, 
-            f'Contra-asiento #{nuevo_mov.id} registrado en bitácora ({bitacora_detalle}).'
+            request,
+            f'Contra-asiento #{nuevo_mov.id} registrado en bitácora ({bitacora_detalle}). '
+            f'Stock actualizado: {stock_anterior} → {nuevo_stock}.'
         )
         return redirect('core:auditoria_kardex')
 
@@ -359,27 +457,35 @@ def exportar_pdf_gerencia(request, tipo_reporte):
 
         # Encabezados de la tabla
         pdf.set_fill_color(230, 230, 230)
-        pdf.set_font('Helvetica', 'B', 8.5)
-        pdf.cell(16, 8, 'ID', border=1, align='C', fill=True)
-        pdf.cell(52, 8, 'PRODUCTO', border=1, align='L', fill=True)
+        pdf.set_font('Helvetica', 'B', 8)
+        pdf.cell(12, 8, 'ID', border=1, align='C', fill=True)
+        pdf.cell(26, 8, 'PERSONAL', border=1, align='L', fill=True)
+        pdf.cell(42, 8, 'PRODUCTO / RECURSO', border=1, align='L', fill=True)
         pdf.cell(38, 8, 'OPERACION', border=1, align='C', fill=True)
-        pdf.cell(18, 8, 'CANT.', border=1, align='C', fill=True)
-        pdf.cell(69, 8, 'REFERENCIA / BITACORA', border=1, align='L', fill=True, ln=1)
+        pdf.cell(15, 8, 'CANT.', border=1, align='C', fill=True)
+        pdf.cell(60, 8, 'MOTIVO / REFERENCIA', border=1, align='L', fill=True, ln=1)
 
-        ModeloKardex = obtener_modelo_kardex()
-        movimientos = ModeloKardex.objects.select_related('articulo').all().order_by('-id')[:50] if ModeloKardex else []
+        movimientos = (
+            MovimientoInventario.objects
+            .select_related('articulo', 'usuario')
+            .all()
+            .order_by('-fecha', '-id')[:50]
+        )
 
-        pdf.set_font('Helvetica', '', 8)
+        pdf.set_font('Helvetica', '', 7.5)
         if movimientos:
             for mov in movimientos:
-                tipo_op = str(getattr(mov, 'tipo_movimiento', getattr(mov, 'tipo', 'MOV')))[:20]
-                ref = str(getattr(mov, 'documento', getattr(mov, 'referencia', '-')))[:38]
-                prod = str(mov.articulo)[:26]
-                pdf.cell(16, 7, f'#{mov.id}', border=1, align='C')
-                pdf.cell(52, 7, f' {prod}', border=1, align='L')
+                tipo_op = mov.get_tipo_movimiento_display()[:24]
+                ref = str(mov.referencia or mov.documento or '-')[:36]
+                prod = str(mov.articulo)[:24] if mov.articulo else 'Acceso Sistema'
+                personal = (mov.usuario.username if mov.usuario else 'Sistema')[:15]
+                cant_txt = str(mov.cantidad) if mov.articulo else '-'
+                pdf.cell(12, 7, f'#{mov.id}', border=1, align='C')
+                pdf.cell(26, 7, f' {personal}', border=1, align='L')
+                pdf.cell(42, 7, f' {prod}', border=1, align='L')
                 pdf.cell(38, 7, tipo_op, border=1, align='C')
-                pdf.cell(18, 7, str(mov.cantidad), border=1, align='C')
-                pdf.cell(69, 7, f' {ref}', border=1, align='L', ln=1)
+                pdf.cell(15, 7, cant_txt, border=1, align='C')
+                pdf.cell(60, 7, f' {ref}', border=1, align='L', ln=1)
         else:
             pdf.cell(193, 10, 'Sin movimientos registrados en el Kardex.', border=1, align='C', ln=1)
 

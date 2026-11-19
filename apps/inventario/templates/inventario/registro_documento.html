@@ -46,8 +46,9 @@
                         <label class="form-label text-light">Tipo Documento *</label>
                         <select name="tipo_documento" class="form-select" required>
                             <option value="FACTURA">Factura Electrónica</option>
-                            <option value="GUIA">Guía de Despacho</option>
+                            <option value="GUIA_DESPACHO">Guía de Despacho</option>
                             <option value="BOLETA">Boleta</option>
+                            <option value="NOTA_CREDITO">Nota de Crédito</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -173,10 +174,10 @@
                 lineas.push({
                     articulo_id: artId,
                     cantidad: tr.querySelector('.inp-cant').value,
-                    precio_unitario: tr.querySelector('.inp-precio').value,
-                    descuento_1: tr.querySelector('.inp-d1').value || 0,
-                    descuento_2: tr.querySelector('.inp-d2').value || 0,
-                    descuento_3: tr.querySelector('.inp-d3').value || 0,
+                    precio_unitario_base: tr.querySelector('.inp-precio').value,
+                    descuento_1_porcentaje: tr.querySelector('.inp-d1').value || 0,
+                    descuento_2_porcentaje: tr.querySelector('.inp-d2').value || 0,
+                    descuento_3_porcentaje: tr.querySelector('.inp-d3').value || 0,
                 });
             }
         });

@@ -93,13 +93,22 @@
             </li>
         </ul>
         <hr class="border-secondary">
-        
-        <div class="d-flex align-items-center text-white">
-            <i class="bi bi-person-badge fs-4 me-2 text-info"></i>
-            <div class="d-flex flex-column lh-1">
-                <strong>{{ request.user.username|default:"Admin" }}</strong>
-                <small class="text-info mt-1" style="font-size: 0.72rem;">Administrador General</small>
+
+        <!-- Bloque de Perfil y Botón Cerrar Sesión -->
+        <div class="p-2 rounded bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+            <div class="d-flex align-items-center text-white mb-2">
+                <i class="bi bi-person-badge fs-4 me-2 text-info"></i>
+                <div class="d-flex flex-column lh-1 overflow-hidden">
+                    <strong class="text-truncate">{{ request.user.get_full_name|default:request.user.username|default:"Admin" }}</strong>
+                    <small class="text-info mt-1" style="font-size: 0.72rem;">{{ rol_usuario|default:"Administrador General" }}</small>
+                </div>
             </div>
+            <form method="post" action="{% url 'usuarios:logout' %}" class="d-grid">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión
+                </button>
+            </form>
         </div>
     </aside>
 
@@ -111,11 +120,9 @@
                 <span>{% block header_title %}Panel Gerencial - Lectura Global, Auditoría y Control{% endblock %}</span>
             </div>
             <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-dark border border-info text-info">
-                    <i class="bi bi-eye me-1"></i> Segregación Activa: Sin Operaciones de Bodega
-                </span>
-                <span class="badge bg-dark border border-secondary text-secondary">
-                    <i class="bi bi-clock me-1"></i> {% now "d/m/Y" %}
+                <span class="badge bg-dark border border-secondary text-light px-3 py-2" title="Hora local (America/Santiago)">
+                    <i class="bi bi-clock text-info me-1"></i>
+                    <span id="reloj-santiago">{% now "d/m/Y H:i" %}</span> hrs
                 </span>
             </div>
         </header>
@@ -127,6 +134,33 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    (function () {
+        const relojEl = document.getElementById('reloj-santiago');
+        if (!relojEl) return;
+
+        const fmt = new Intl.DateTimeFormat('es-CL', {
+            timeZone: 'America/Santiago',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23'
+        });
+
+        function actualizarReloj() {
+            const partes = {};
+            for (const p of fmt.formatToParts(new Date())) {
+                partes[p.type] = p.value;
+            }
+            relojEl.textContent = `${partes.day}/${partes.month}/${partes.year} ${partes.hour}:${partes.minute}`;
+        }
+
+        actualizarReloj();
+        setInterval(actualizarReloj, 15000);
+    })();
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>
