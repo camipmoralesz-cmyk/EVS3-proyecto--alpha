@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('nombre', models.CharField(max_length=150, verbose_name='Nombre')),
-                ('cargo', models.CharField(choices=[('COMERCIAL', 'Ejecutivo comercial'), ('TECNICO', 'Encargado técnico'), ('FINANZAS', 'Contacto de finanzas'), ('OTRO', 'Otro')], default='COMERCIAL', max_length=10, verbose_name='Cargo / Área')),
+                ('cargo', models.CharField(choices=[('COMERCIAL', 'Ejecutivo comercial'), ('FINANZAS', 'Contacto de finanzas'), ('OTRO', 'Otro')], default='COMERCIAL', max_length=10, verbose_name='Cargo / Área')),
                 ('rut', models.CharField(blank=True, max_length=12, validators=[apps.entidades.validators.validar_rut], verbose_name='RUT del representante')),
                 ('email', models.EmailField(blank=True, max_length=254, verbose_name='Correo Electrónico')),
                 ('telefono', models.CharField(blank=True, max_length=20, validators=[django.core.validators.RegexValidator(message='Teléfono inválido. Use solo números, espacios, +, paréntesis o guiones (7 a 20 caracteres).', regex='^[0-9+\\s()-]{7,20}$')], verbose_name='Teléfono')),

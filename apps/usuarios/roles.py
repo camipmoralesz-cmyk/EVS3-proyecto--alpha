@@ -33,12 +33,7 @@ ROLES = [
         'badge': 'Global & Auditoría',
         'description': 'Lectura global, reportes KPI, contra-asientos y bitácora SHA-256.',
     },
-    {
-        'id': 'tecnico',
-        'name': 'Técnico (App Móvil)',
-        'badge': 'Acceso Terreno',
-        'description': 'Recepción de materiales, firma digital y checklists.',
-    },
+
 ]
 
 ROLES_POR_ID = {r['id']: r for r in ROLES}

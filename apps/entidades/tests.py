@@ -209,7 +209,7 @@ class EntidadesViewsTests(TestCase):
         contacto = ContactoEntidad.objects.create(
             entidad=ficha,
             nombre='Contacto Original',
-            cargo=ContactoEntidad.Cargo.TECNICO,
+            cargo=ContactoEntidad.Cargo,
             email='original@empresa.cl',
         )
         cuenta = CuentaBancaria.objects.create(

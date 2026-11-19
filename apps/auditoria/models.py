@@ -22,7 +22,6 @@ class MovimientoCardex(models.Model):
     
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     obra = models.ForeignKey('obras.Obra', on_delete=models.PROTECT, null=True, blank=True)
-    #tecnico = models.ForeignKey('usuarios.Tecnico', on_delete=models.PROTECT, null=True, blank=True) se elimina ya que choca con usuario
     #usuario viene por defecto en django
     justificacion = models.TextField(help_text="Motivo obligatorio para ajustes o anulaciones")
     
