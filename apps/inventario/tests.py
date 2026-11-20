@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.core.exceptions import ValidationError
 from apps.catalogo.models import Categoria, Articulo
@@ -81,6 +82,8 @@ class TransaccionInventarioTest(TestCase):
             rut="76.999.888-1",
             razon_social="Distribuidora Eléctrica Central S.A."
         )
+        # Todo movimiento exige un usuario responsable (trazabilidad del Cardex)
+        self.usuario = get_user_model().objects.create_user('bodeguero', password='x')
 
     def test_ingreso_factura_actualiza_stock_y_costos_exitosamente(self):
         datos_doc = {
@@ -109,7 +112,7 @@ class TransaccionInventarioTest(TestCase):
             }
         ]
 
-        doc = registrar_documento_entrada(datos_doc, lineas)
+        doc = registrar_documento_entrada(datos_doc, lineas, usuario=self.usuario)
 
         # 1. Verificar Documento creado
         self.assertEqual(doc.numero_documento, 'FAC-8899')
@@ -161,7 +164,7 @@ class TransaccionInventarioTest(TestCase):
             }
         ]
 
-        doc = registrar_documento_entrada(datos_doc, lineas)
+        doc = registrar_documento_entrada(datos_doc, lineas, usuario=self.usuario)
 
         self.articulo2.refresh_from_db()
         # Stock original era 50, disminuye a 40
@@ -203,7 +206,7 @@ class TransaccionInventarioTest(TestCase):
 
         # Debe lanzar ValidationError
         with self.assertRaises(ValidationError):
-            registrar_documento_entrada(datos_doc, lineas)
+            registrar_documento_entrada(datos_doc, lineas, usuario=self.usuario)
 
         # Verificar que el documento NO se creó
         self.assertFalse(DocumentoEntrada.objects.filter(numero_documento='NC-FALLIDA').exists())

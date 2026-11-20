@@ -1,7 +1,10 @@
 from django.core.management.base import BaseCommand
 from decimal import Decimal
 from apps.catalogo.models import Categoria, Articulo
+from django.contrib.auth import get_user_model
 from apps.entidades.models import Proveedor
+from apps.inventario.models import DetalleSolicitud, SolicitudDespacho
+from apps.obras.models import Obra
 
 class Command(BaseCommand):
     help = 'Puebla la base de datos con proveedores, categorías y artículos de prueba para HU-01'
@@ -100,5 +103,24 @@ class Command(BaseCommand):
                 defaults=item
             )
 
+        self._crear_solicitud_demo()
         self.stdout.write(self.style.SUCCESS('¡Datos de prueba cargados exitosamente!'))
+
+    def _crear_solicitud_demo(self):
+        """Una obra activa y una solicitud pendiente para probar el despacho (HU-02).
+        Requiere los usuarios demo: python manage.py crear_roles --demo"""
+        supervisor = get_user_model().objects.filter(username='supervisor').first()
+        if supervisor is None:
+            self.stdout.write("Sin usuario 'supervisor': ejecute 'crear_roles --demo' para crear la solicitud de ejemplo.")
+            return
+        mandante, _ = Proveedor.objects.get_or_create(
+            rut='76.543.210-3',
+            defaults={'razon_social': 'Agrícola Ñuble SpA', 'tipo': Proveedor.Tipo.MANDANTE})
+        obra, _ = Obra.objects.get_or_create(nombre='Cámara de frío Chillán', defaults={'mandante': mandante})
+        if not SolicitudDespacho.objects.filter(obra=obra, solicitante=supervisor).exists():
+            sol = SolicitudDespacho.objects.create(obra=obra, solicitante=supervisor,
+                                                   observaciones='Solicitud de ejemplo')
+            for art in Articulo.objects.filter(stock_actual__gt=5)[:2]:
+                DetalleSolicitud.objects.create(solicitud=sol, articulo=art, cantidad=Decimal('2.00'))
+            self.stdout.write("Solicitud de despacho de ejemplo creada.")
 

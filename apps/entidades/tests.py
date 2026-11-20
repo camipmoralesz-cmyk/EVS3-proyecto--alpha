@@ -1,3 +1,5 @@
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
@@ -68,6 +70,12 @@ class ValidadorRutTests(TestCase):
 
 class EntidadesViewsTests(TestCase):
     """Pruebas de vistas, formularios y filtros de HU-07."""
+
+    def setUp(self):
+        # Las fichas las gestiona el rol Finanzas (Bodega solo las selecciona).
+        usuario = get_user_model().objects.create_user('finanzas_test', password='x')
+        usuario.groups.add(Group.objects.get_or_create(name='finanzas')[0])
+        self.client.force_login(usuario)
 
     def _payload_base(self, **overrides):
         """Datos POST base con management forms vacíos de contactos y cuentas."""

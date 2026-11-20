@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.inventario',
     'apps.obras',
     'apps.usuarios',
+    'apps.core',
 ]
 
 MIDDLEWARE = [
@@ -60,6 +61,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'apps.core.context_processors.navegacion',
             ],
         },
     },
@@ -125,6 +127,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 STATIC_URL = "static/"
+STATICFILES_DIRS = [BASE_DIR / 'static']
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
@@ -136,5 +139,5 @@ MAILERS = {
 }
 
 LOGIN_URL = 'usuarios:login'
-LOGIN_REDIRECT_URL = '/inventario/stock/'
+LOGIN_REDIRECT_URL = 'core:dashboard'
 LOGOUT_REDIRECT_URL = 'usuarios:login'

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h3 class="fw-bold text-dark mb-0">
+        <h3 class="fw-bold text-white mb-0">
             <i class="bi bi-file-earmark-check-fill text-success me-2"></i>
             {{ documento.get_tipo_documento_display }} N° {{ documento.numero_documento }}
         </h3>
@@ -17,9 +17,9 @@
         </p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{% url 'registro_documento' %}" class="btn btn-primary btn-sm">
+        {% if 'bodega' in mis_roles %}<a href="{% url 'registro_documento' %}" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-circle me-1"></i> Nuevo Ingreso
-        </a>
+        </a>{% endif %}
         <a href="{% url 'inventario_stock' %}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-boxes me-1"></i> Ver Stock en Tiempo Real
         </a>
@@ -33,7 +33,7 @@
     <!-- Resumen del Proveedor y Documento -->
     <div class="col-md-6">
         <div class="card card-custom h-100">
-            <div class="card-header bg-white py-3 fw-bold text-primary">
+            <div class="card-header py-3 fw-bold text-primary">
                 <i class="bi bi-building me-2"></i> Información del Proveedor
             </div>
             <div class="card-body">
@@ -57,7 +57,7 @@
     <!-- Datos de la Transacción -->
     <div class="col-md-6">
         <div class="card card-custom h-100">
-            <div class="card-header bg-white py-3 fw-bold text-primary">
+            <div class="card-header py-3 fw-bold text-primary">
                 <i class="bi bi-receipt me-2"></i> Datos de la Transacción
             </div>
             <div class="card-body">
@@ -81,13 +81,13 @@
 
 <!-- Tabla de Líneas de Ítems y Descuentos -->
 <div class="card card-custom mb-4">
-    <div class="card-header bg-white py-3 fw-bold text-primary">
+    <div class="card-header py-3 fw-bold text-primary">
         <i class="bi bi-list-stars me-2"></i> Líneas de Ítems y Desglose de Descuentos Aplicados
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-bordered table-hover align-middle mb-0">
-                <thead class="table-light text-center small text-uppercase">
+                <thead class="text-center small text-uppercase">
                     <tr>
                         <th>#</th>
                         <th>Código</th>
@@ -105,7 +105,7 @@
                     {% for det in detalles %}
                     <tr>
                         <td class="text-center text-muted">{{ forloop.counter }}</td>
-                        <td class="text-center"><span class="badge bg-light text-dark border">{{ det.articulo.codigo_interno }}</span></td>
+                        <td class="text-center"><span class="badge bg-dark border border-secondary text-light">{{ det.articulo.codigo_interno }}</span></td>
                         <td>
                             <strong>{{ det.articulo.nombre }}</strong>
                             <div class="small text-muted">U.M: {{ det.articulo.get_unidad_medida_display }} | Ubicación: {{ det.articulo.ubicacion_bodega }}</div>
@@ -120,7 +120,7 @@
                     </tr>
                     {% endfor %}
                 </tbody>
-                <tfoot class="table-light">
+                <tfoot >
                     <tr>
                         <th colspan="9" class="text-end fs-6">TOTAL NETO DOCUMENTO:</th>
                         <th class="text-end fw-bold text-success fs-5">${{ documento.monto_neto }} CLP</th>
@@ -133,13 +133,13 @@
 
 <!-- Movimientos de Auditoría Generados -->
 <div class="card card-custom">
-    <div class="card-header bg-white py-3 fw-bold text-primary">
+    <div class="card-header py-3 fw-bold text-primary">
         <i class="bi bi-clock-history me-2"></i> Registros de Auditoría de Inventario Generados (Tiempo Real)
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover table-striped align-middle mb-0">
-                <thead class="table-light small text-uppercase">
+                <thead class="small text-uppercase">
                     <tr>
                         <th>Fecha y Hora</th>
                         <th>Artículo</th>
@@ -156,13 +156,13 @@
                         <td class="small">{{ mov.fecha|date:"d/m/Y H:i:s" }}</td>
                         <td>[{{ mov.articulo.codigo_interno }}] {{ mov.articulo.nombre }}</td>
                         <td>
-                            <span class="badge {% if mov.tipo_movimiento == 'ENTRADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                            <span class="badge {% if mov.suma_stock %}bg-success{% else %}bg-warning text-dark{% endif %}">
                                 {{ mov.get_tipo_movimiento_display }}
                             </span>
                         </td>
                         <td class="text-center text-muted">{{ mov.stock_anterior }}</td>
-                        <td class="text-center fw-bold {% if mov.tipo_movimiento == 'ENTRADA' %}text-success{% else %}text-danger{% endif %}">
-                            {% if mov.tipo_movimiento == 'ENTRADA' %}+{% else %}-{% endif %}{{ mov.cantidad }}
+                        <td class="text-center fw-bold {% if mov.suma_stock %}text-success{% else %}text-danger{% endif %}">
+                            {% if mov.suma_stock %}+{% else %}−{% endif %}{{ mov.cantidad }}
                         </td>
                         <td class="text-center fw-bold text-primary">{{ mov.stock_posterior }}</td>
                         <td>${{ mov.costo_unitario }} CLP</td>

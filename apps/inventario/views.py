@@ -1,25 +1,34 @@
 import json
-from decimal import Decimal
-from django.shortcuts import render, redirect, get_object_or_404
+import logging
+
 from django.contrib import messages
-from django.http import JsonResponse
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET
+
 from apps.catalogo.models import Articulo
 from apps.entidades.models import Proveedor
-from .models import DocumentoEntrada, DetalleDocumento, MovimientoInventario
 from .forms import DocumentoEntradaForm
-from .services import registrar_documento_entrada, calcular_descuentos_sucesivos, calcular_subtotal_linea
+from .models import DocumentoEntrada, MovimientoInventario
+from .permisos import bodega_requerida, lectura_cardex, lectura_inventario
+from .services import registrar_documento_entrada
 
+logger = logging.getLogger(__name__)
+
+
+@bodega_requerida
 def registro_documento(request):
     """
-    Vista para registrar un documento de entrada con múltiples líneas de ítems
-    y cálculo en tiempo real de hasta 3 descuentos sucesivos.
+    Registro de un documento de entrada (factura, boleta, guía, nota de crédito) con múltiples
+    líneas y hasta 3 descuentos sucesivos por línea. Solo Bodega / Logística.
     """
     if request.method == 'POST':
         # Detectar si viene por JSON (AJAX) o multipart/form-data
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.content_type == 'application/json'
-        
+
         try:
             if request.content_type == 'application/json':
                 payload = json.loads(request.body.decode('utf-8'))
@@ -35,8 +44,7 @@ def registro_documento(request):
                 numero_documento = request.POST.get('numero_documento')
                 fecha_emision = request.POST.get('fecha_emision')
                 observaciones = request.POST.get('observaciones', '')
-                lineas_json = request.POST.get('lineas_json', '[]')
-                lineas_raw = json.loads(lineas_json)
+                lineas_raw = json.loads(request.POST.get('lineas_json', '[]'))
 
             if not proveedor_id:
                 raise ValidationError("Debe seleccionar un proveedor.")
@@ -46,24 +54,25 @@ def registro_documento(request):
                 raise ValidationError("Debe ingresar el número del documento.")
             if not fecha_emision:
                 raise ValidationError("Debe ingresar la fecha de emisión.")
-            if not lineas_raw:
+            if not lineas_raw or not isinstance(lineas_raw, list):
                 raise ValidationError("Debe ingresar al menos una línea de artículo.")
 
-            proveedor = get_object_or_404(Proveedor, pk=proveedor_id)
+            # Bodega solo selecciona proveedores existentes, activos y de tipo proveedor.
+            proveedor = Proveedor.objects.filter(
+                pk=proveedor_id, activo=True, tipo=Proveedor.Tipo.PROVEEDOR).first()
+            if proveedor is None:
+                raise ValidationError("El proveedor seleccionado no existe o no está activo.")
 
-            datos_documento = {
+            documento = registrar_documento_entrada({
                 'proveedor': proveedor,
                 'tipo_documento': tipo_documento,
                 'numero_documento': numero_documento,
                 'fecha_emision': fecha_emision,
                 'observaciones': observaciones,
-            }
+            }, lineas_raw, usuario=request.user)
 
-            usuario = request.user if request.user.is_authenticated else None
-            documento = registrar_documento_entrada(datos_documento, lineas_raw, usuario=usuario)
-
-            msg_exito = f"{documento.get_tipo_documento_display()} N° {documento.numero_documento} registrado exitosamente. Stock actualizado en tiempo real."
-
+            msg_exito = (f"{documento.get_tipo_documento_display()} N° {documento.numero_documento} "
+                         f"registrado exitosamente. Stock actualizado en tiempo real.")
             if is_ajax:
                 return JsonResponse({
                     'status': 'ok',
@@ -71,77 +80,79 @@ def registro_documento(request):
                     'documento_id': documento.id,
                     'redirect_url': f"/inventario/documentos/{documento.id}/"
                 })
-
             messages.success(request, msg_exito)
             return redirect('detalle_documento', pk=documento.pk)
 
-        except (ValidationError, Exception) as e:
-            error_msg = e.message if hasattr(e, 'message') else str(e)
-            if is_ajax:
-                return JsonResponse({'status': 'error', 'message': error_msg}, status=400)
-            messages.error(request, f"Error al registrar documento: {error_msg}")
+        except ValidationError as e:
+            error_msg = ' '.join(e.messages)
+        except (ValueError, TypeError, KeyError):
+            error_msg = "Los datos enviados no son válidos. Revise el formulario."
+        except Exception:
+            # Los detalles técnicos quedan solo en el log interno (estándar de programación segura).
+            logger.exception("Error inesperado al registrar documento de entrada")
+            error_msg = "Ocurrió un error inesperado al registrar el documento. No se guardó ningún cambio."
+
+        if is_ajax:
+            return JsonResponse({'status': 'error', 'message': error_msg}, status=400)
+        messages.error(request, f"Error al registrar documento: {error_msg}")
 
     form = DocumentoEntradaForm()
-    proveedores = Proveedor.objects.filter(activo=True)
-    articulos = Articulo.objects.all().order_by('nombre')
-    
     return render(request, 'inventario/registro_documento.html', {
         'form': form,
-        'proveedores': proveedores,
-        'articulos': articulos,
+        'proveedores': form.fields['proveedor'].queryset,
+        'articulos': Articulo.objects.filter(activo=True).order_by('nombre'),
     })
 
 
+@lectura_cardex
 def lista_documentos(request):
-    """
-    Listado histórico de documentos de entrada registrados.
-    """
-    documentos = DocumentoEntrada.objects.select_related('proveedor', 'registrado_por').prefetch_related('detalles').all()
-    return render(request, 'inventario/lista_documentos.html', {
-        'documentos': documentos
-    })
+    """Listado histórico de documentos de entrada registrados (con valorización)."""
+    documentos = DocumentoEntrada.objects.select_related('proveedor', 'registrado_por').prefetch_related('detalles')
+    return render(request, 'inventario/lista_documentos.html', {'documentos': documentos})
 
 
+@lectura_cardex
 def detalle_documento(request, pk):
-    """
-    Detalle completo de un documento y sus líneas con desglose de descuentos.
-    """
+    """Detalle de un documento y sus líneas con desglose de descuentos."""
     documento = get_object_or_404(DocumentoEntrada.objects.select_related('proveedor', 'registrado_por'), pk=pk)
-    detalles = documento.detalles.select_related('articulo').all()
-    movimientos = documento.movimientos_generados.select_related('articulo').all()
-
     return render(request, 'inventario/detalle_documento.html', {
         'documento': documento,
-        'detalles': detalles,
-        'movimientos': movimientos,
+        'detalles': documento.detalles.select_related('articulo'),
+        'movimientos': documento.movimientos_generados.select_related('articulo'),
     })
 
 
+@lectura_inventario
 def inventario_stock(request):
-    """
-    Vista de inventario / stock en tiempo real con alertas de stock crítico y mínimo.
-    """
-    articulos = Articulo.objects.select_related('categoria').all().order_by('nombre')
-    return render(request, 'inventario/stock.html', {
-        'articulos': articulos
-    })
+    """Inventario / stock en tiempo real con alertas de stock crítico y mínimo."""
+    articulos = Articulo.objects.select_related('categoria').filter(activo=True).order_by('nombre')
+    return render(request, 'inventario/stock.html', {'articulos': articulos})
 
 
+@lectura_cardex
 def historial_movimientos(request):
-    """
-    Log de auditoría de movimientos de inventario.
-    """
-    movimientos = MovimientoInventario.objects.select_related('articulo', 'documento', 'usuario').all()[:100]
+    """Cardex: historial de movimientos. SOLO LECTURA (no existe ninguna acción de editar ni borrar)."""
+    movimientos = MovimientoInventario.objects.select_related('articulo', 'documento', 'usuario', 'obra')
+    q = request.GET.get('q', '').strip()
+    tipo = request.GET.get('tipo', '').strip()
+    if q:
+        movimientos = movimientos.filter(
+            Q(articulo__nombre__icontains=q) | Q(articulo__codigo_interno__icontains=q)
+            | Q(referencia__icontains=q) | Q(usuario__username__icontains=q)
+        )
+    if tipo in dict(MovimientoInventario.TIPOS_MOVIMIENTO):
+        movimientos = movimientos.filter(tipo_movimiento=tipo)
+    pagina = Paginator(movimientos, 50).get_page(request.GET.get('page'))
     return render(request, 'inventario/movimientos.html', {
-        'movimientos': movimientos
+        'movimientos': pagina, 'q': q, 'tipo_seleccionado': tipo,
+        'tipos': MovimientoInventario.TIPOS_MOVIMIENTO,
     })
 
 
+@lectura_inventario
 @require_GET
 def api_articulo_info(request, pk):
-    """
-    API JSON que retorna stock y costo actual de un artículo para la interfaz interactiva.
-    """
+    """API JSON: stock y costo actual de un artículo para la interfaz interactiva."""
     articulo = get_object_or_404(Articulo, pk=pk)
     return JsonResponse({
         'id': articulo.id,
