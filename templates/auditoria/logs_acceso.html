@@ -1,0 +1,59 @@
+"(Registro de seguridad con intentos de inicio de sesión exitosos y fallidos, dirección IP y navegador)."
+
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">Registro de Accesos al Sistema</h2>
+            <p class="text-muted mb-0">Control de seguridad sobre inicios de sesión exitosos e intentos fallidos</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'auditoria:lista_cardex' %}" class="btn btn-outline-secondary btn-sm">Cardex</a>
+            <a href="{% url 'auditoria:lista_bitacora' %}" class="btn btn-outline-secondary btn-sm">Bitácora de Cambios</a>
+            <a href="{% url 'auditoria:logs_acceso' %}" class="btn btn-primary btn-sm">Registro de Accesos</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Usuario Intentado</th>
+                        <th>Estado</th>
+                        <th>Dirección IP</th>
+                        <th>Navegador / Dispositivo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                        <tr class="{% if not log.exitoso %}table-danger{% endif %}">
+                            <td class="text-nowrap">{{ log.fecha_hora|date:"d/m/Y H:i:s" }}</td>
+                            <td class="fw-semibold">{{ log.username_intentado }}</td>
+                            <td>
+                                {% if log.exitoso %}
+                                    <span class="badge bg-success">Acceso Exitoso</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Intento Fallido</span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ log.ip_origen|default:"-" }}</code></td>
+                            <td><small class="text-muted">{{ log.user_agent|truncatechars:85 }}</small></td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">
+                                No hay registros de acceso almacenados todavía.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

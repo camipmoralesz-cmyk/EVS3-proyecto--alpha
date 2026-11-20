@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+    <!-- Encabezado y Navegación del Módulo -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">Auditoría de Inventario (Cardex Inmutable)</h2>
+            <p class="text-muted mb-0">Trazabilidad histórica de movimientos de bodega, contra-asientos y respaldos documentales</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'auditoria:lista_cardex' %}" class="btn btn-primary btn-sm">Cardex</a>
+            <a href="{% url 'auditoria:lista_bitacora' %}" class="btn btn-outline-secondary btn-sm">Bitácora de Cambios</a>
+            <a href="{% url 'auditoria:logs_acceso' %}" class="btn btn-outline-secondary btn-sm">Registro de Accesos</a>
+            <div class="vr mx-1"></div>
+            <a href="{% url 'auditoria:exportar_cardex_excel' %}?{{ request.GET.urlencode }}" class="btn btn-success btn-sm">
+                Exportar Excel
+            </a>
+            <a href="{% url 'auditoria:exportar_cardex_pdf' %}?{{ request.GET.urlencode }}" class="btn btn-danger btn-sm">
+                Exportar PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Alertas / Mensajes del Sistema -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Panel de Filtros Avanzados -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold small">Artículo / Material</label>
+                    <select name="articulo" class="form-select">
+                        <option value="">Todos los artículos</option>
+                        {% for art in articulos %}
+                            <option value="{{ art.id }}" {% if articulo_seleccionado == art.id|stringformat:"s" %}selected{% endif %}>
+                                {{ art.codigo_interno }} - {{ art.nombre }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold small">Tipo de Movimiento</label>
+                    {{ form_filtros.tipo_movimiento }}
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold small">Desde</label>
+                    {{ form_filtros.fecha_inicio }}
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold small">Hasta</label>
+                    {{ form_filtros.fecha_fin }}
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold small">Usuario / Doc. o Obra</label>
+                    <div class="input-group">
+                        {{ form_filtros.usuario }}
+                        {{ form_filtros.documento }}
+                    </div>
+                </div>
+
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <a href="{% url 'auditoria:lista_cardex' %}" class="btn btn-outline-secondary btn-sm">Limpiar Filtros</a>
+                    <button type="submit" class="btn btn-dark btn-sm px-4">Filtrar Historial</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla Histórica Inmutable -->
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Fecha y Hora</th>
+                        <th>Artículo</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Cantidad</th>
+                        <th class="text-end">Saldo</th>
+                        <th>Responsable</th>
+                        <th>Obra / Documento</th>
+                        <th>Justificación / Observación</th>
+                        {% if es_admin_general %}
+                            <th class="text-center">Acción</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movimientos %}
+                        <tr class="{% if m.es_reversa %}table-warning{% elif m.contra_asiento %}table-light text-muted{% endif %}">
+                            <td class="fw-bold">#{{ m.id }}</td>
+                            <td class="text-nowrap">{{ m.fecha_hora|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <span class="fw-semibold">{{ m.articulo.nombre }}</span>
+                            </td>
+                            <td>
+                                {% if m.es_reversa %}
+                                    <span class="badge bg-warning text-dark">{{ m.get_tipo_movimiento_display }}</span>
+                                {% elif m.cantidad > 0 %}
+                                    <span class="badge bg-success">{{ m.get_tipo_movimiento_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-primary">{{ m.get_tipo_movimiento_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-bold {% if m.cantidad > 0 %}text-success{% else %}text-danger{% endif %}">
+                                {% if m.cantidad > 0 %}+{% endif %}{{ m.cantidad }}
+                            </td>
+                            <td class="text-end fw-semibold">{{ m.saldo_resultante }}</td>
+                            <td>{{ m.usuario.username }}</td>
+                            <td>
+                                {% if m.obra_referencia %}<div><small class="fw-semibold">Obra:</small> {{ m.obra_referencia }}</div>{% endif %}
+                                {% if m.documento_referencia %}<div><small class="fw-semibold">Doc:</small> {{ m.documento_referencia }}</div>{% endif %}
+                                {% if not m.obra_referencia and not m.documento_referencia %}<span class="text-muted">-</span>{% endif %}
+                            </td>
+                            <td>
+                                <small>{{ m.justificacion }}</small>
+                                {% if m.contra_asiento %}
+                                    <div class="mt-1">
+                                        <span class="badge bg-secondary">Anulado por asiento #{{ m.contra_asiento.id }}</span>
+                                    </div>
+                                {% endif %}
+                            </td>
+
+                            {% if es_admin_general %}
+                                <td class="text-center">
+                                    {% if not m.es_reversa and not m.contra_asiento %}
+                                        <button type="button"
+                                                class="btn btn-outline-danger btn-sm"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#modalAnulacion"
+                                                data-mov-id="{{ m.id }}"
+                                                data-mov-desc="#{{ m.id }} - {{ m.articulo.nombre }} ({{ m.cantidad }} unid.)">
+                                            Anular
+                                        </button>
+                                    {% else %}
+                                        <span class="text-muted small">Inmutable</span>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="10" class="text-center py-4 text-muted">
+                                No se encontraron movimientos registrados con los filtros seleccionados.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Anulación Controlada (Solo Administrador General) -->
+{% if es_admin_general %}
+<div class="modal fade" id="modalAnulacion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'auditoria:anular_movimiento' %}">
+                {% csrf_token %}
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Anulación Controlada (Contra-Asiento)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">
+                        Los registros del Cardex no se eliminan físicamente. Esta acción generará un nuevo movimiento inverso para restaurar el stock dejando evidencia auditada.
+                    </p>
+                    <div class="alert alert-light border mb-3">
+                        <strong>Movimiento a reversar:</strong> <span id="textoMovimientoAnular"></span>
+                    </div>
+                    {{ form_anulacion.movimiento_id }}
+                    <div class="mb-3">
+                        <label for="{{ form_anulacion.motivo_anulacion.id_for_label }}" class="form-label fw-semibold">
+                            {{ form_anulacion.motivo_anulacion.label }} *
+                        </label>
+                        {{ form_anulacion.motivo_anulacion }}
+                        <div class="form-text">Mínimo 10 caracteres. Quedará registrado con su usuario, fecha y hora.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Confirmar Contra-Asiento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modalAnulacion = document.getElementById('modalAnulacion');
+    if (modalAnulacion) {
+        modalAnulacion.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const movId = button.getAttribute('data-mov-id');
+            const movDesc = button.getAttribute('data-mov-desc');
+            modalAnulacion.querySelector('input[name="movimiento_id"]').value = movId;
+            document.getElementById('textoMovimientoAnular').textContent = movDesc;
+        });
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

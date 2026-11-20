@@ -39,6 +39,12 @@ ROLES = [
         'badge': 'Acceso Terreno',
         'description': 'Recepción de materiales, firma digital y checklists.',
     },
+    {
+        'id': 'auditor',
+        'name': 'Auditor Interno / Fiscalización',
+        'badge': 'Solo Lectura & Cardex',
+        'description': 'Fiscalización de Cardex inmutable, bitácora de cambios, logs de acceso y exportación.',
+    },
 ]
 
 ROLES_POR_ID = {r['id']: r for r in ROLES}

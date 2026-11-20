@@ -1,6 +1,7 @@
 
 from pathlib import Path
 import os #Nos permite entrar a nuestros archivo de proyecto y acceder a las variables de entorno
+from dotenv import load_dotenv
 
 try:
     from dotenv import load_dotenv
@@ -46,6 +47,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.auditoria.middleware.AuditoriaRequestMiddleware'
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -73,16 +75,15 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 if os.getenv('DB_NAME'):
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
-        }
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'proyecto_alpha'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', '141111'),
+        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
-else:
+}
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
