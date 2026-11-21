@@ -5,12 +5,14 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_GET
+from apps.finanzas.utils import bloquear_escrituras_finanzas
 from apps.catalogo.models import Articulo
 from apps.entidades.models import Proveedor
 from .models import DocumentoEntrada, DetalleDocumento, MovimientoInventario
 from .forms import DocumentoEntradaForm
 from .services import registrar_documento_entrada, calcular_descuentos_sucesivos, calcular_subtotal_linea
 
+@bloquear_escrituras_finanzas
 def registro_documento(request):
     """
     Vista para registrar un documento de entrada con múltiples líneas de ítems

@@ -62,6 +62,61 @@ class FinanzasAccesoRolTests(BaseFinanzasTestCase):
         self.assertContains(respuesta, 'Panel de Finanzas')
         self.assertContains(respuesta, f'href="{reverse("finanzas:panel")}"')
 
+    def test_personal_finanzas_solo_ve_finanzas_y_compras_en_sidebar(self):
+        self.client.force_login(self.user_finanzas)
+        respuesta = self.client.get(reverse('finanzas:panel'))
+        menu = respuesta.content.decode().split(
+            '<!-- Menú de Módulos según requerimientos FYAG -->',
+            1,
+        )[1].split('</ul>', 1)[0]
+
+        self.assertIn(f'href="{reverse("finanzas:panel")}"', menu)
+        self.assertIn(f'href="{reverse("lista_documentos")}"', menu)
+        for opcion in (
+            'Dashboard',
+            'Catálogo de Artículos',
+            'Despachos a Obras',
+            'Kardex Inalterable',
+            'Proveedores y Clientes',
+            'Usuarios y Roles',
+            'Auditoría',
+        ):
+            self.assertNotIn(opcion, menu)
+
+    def test_finanzas_no_puede_abrir_vistas_que_registran_documentos_o_articulos(self):
+        self.client.force_login(self.user_finanzas)
+        total_documentos = DocumentoEntrada.objects.count()
+        total_articulos = Articulo.objects.count()
+
+        for metodo in ('get', 'post'):
+            with self.subTest(vista='registro_documento', metodo=metodo):
+                respuesta = getattr(self.client, metodo)(
+                    reverse('registro_documento'),
+                    {},
+                )
+                self.assertEqual(respuesta.status_code, 403)
+            with self.subTest(vista='crear_articulo', metodo=metodo):
+                respuesta = getattr(self.client, metodo)(
+                    reverse('crear_articulo'),
+                    {},
+                )
+                self.assertEqual(respuesta.status_code, 403)
+
+        self.assertEqual(DocumentoEntrada.objects.count(), total_documentos)
+        self.assertEqual(Articulo.objects.count(), total_articulos)
+
+    def test_bodega_conserva_acceso_actual_a_ingresos_y_articulos(self):
+        self.client.force_login(self.user_bodega)
+
+        self.assertEqual(
+            self.client.get(reverse('registro_documento')).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.get(reverse('crear_articulo')).status_code,
+            200,
+        )
+
     def test_otro_rol_no_ve_enlace_finanzas_en_sidebar(self):
         self.client.force_login(self.user_bodega)
         respuesta = self.client.get(reverse('lista_entidades'))
@@ -72,6 +127,14 @@ class FinanzasAccesoRolTests(BaseFinanzasTestCase):
         self.client.force_login(self.superuser)
         respuesta = self.client.get(reverse('finanzas:panel'))
         self.assertEqual(respuesta.status_code, 200)
+        menu = respuesta.content.decode().split(
+            '<!-- Menú de Módulos según requerimientos FYAG -->',
+            1,
+        )[1].split('</ul>', 1)[0]
+        self.assertIn(f'href="{reverse("finanzas:panel")}"', menu)
+        self.assertIn(f'href="{reverse("lista_documentos")}"', menu)
+        self.assertNotIn('Dashboard', menu)
+        self.assertNotIn('Catálogo de Artículos', menu)
 
 
 class FinanzasEntidadesTests(BaseFinanzasTestCase):
