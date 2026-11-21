@@ -2,15 +2,23 @@ import json
 from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.core.exceptions import ValidationError
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
+from apps.finanzas.utils import bloquear_escrituras_finanzas
 from apps.catalogo.models import Articulo
 from apps.entidades.models import Proveedor
+from apps.usuarios.roles import rol_requerido
 from .models import DocumentoEntrada, DetalleDocumento, MovimientoInventario
 from .forms import DocumentoEntradaForm
-from .services import registrar_documento_entrada, calcular_descuentos_sucesivos, calcular_subtotal_linea
+from .services import (
+    calcular_descuentos_sucesivos,
+    calcular_subtotal_linea,
+    confirmar_documento_borrador,
+    registrar_documento_entrada,
+)
 
+@bloquear_escrituras_finanzas
 def registro_documento(request):
     """
     Vista para registrar un documento de entrada con múltiples líneas de ítems
@@ -89,6 +97,8 @@ def registro_documento(request):
         'form': form,
         'proveedores': proveedores,
         'articulos': articulos,
+        'modo_finanzas': False,
+        'lineas_iniciales': [],
     })
 
 
@@ -115,6 +125,23 @@ def detalle_documento(request, pk):
         'detalles': detalles,
         'movimientos': movimientos,
     })
+
+
+@rol_requerido('bodega')
+@require_POST
+def confirmar_borrador(request, pk):
+    try:
+        documento = confirmar_documento_borrador(pk, request.user)
+    except DocumentoEntrada.DoesNotExist as error:
+        raise Http404 from error
+    except ValidationError as error:
+        messages.error(request, 'No se pudo confirmar el borrador: ' + '; '.join(error.messages))
+    else:
+        messages.success(
+            request,
+            f'{documento.get_tipo_documento_display()} N° {documento.numero_documento} confirmado. El inventario fue actualizado.',
+        )
+    return redirect('detalle_documento', pk=pk)
 
 
 def inventario_stock(request):

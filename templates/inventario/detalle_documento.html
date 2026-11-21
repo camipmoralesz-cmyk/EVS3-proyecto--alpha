@@ -11,12 +11,20 @@
         </h3>
         <p class="text-muted small mb-0">
             Registrado el {{ documento.fecha_registro|date:"d/m/Y H:i" }} | Estado:
-            <span class="badge {% if documento.estado == 'CONFIRMADO' %}bg-success{% else %}bg-danger{% endif %}">
+            <span class="badge {% if documento.estado == 'CONFIRMADO' %}bg-success{% elif documento.estado == 'BORRADOR' %}bg-secondary{% else %}bg-danger{% endif %}">
                 {{ documento.get_estado_display }}
             </span>
         </p>
     </div>
     <div class="d-flex gap-2">
+        {% if documento.estado == 'BORRADOR' %}
+        <form method="post" action="{% url 'confirmar_borrador' documento.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success btn-sm">
+                <i class="bi bi-check-circle me-1"></i> Confirmar ingreso a inventario
+            </button>
+        </form>
+        {% endif %}
         <a href="{% url 'registro_documento' %}" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-circle me-1"></i> Nuevo Ingreso
         </a>

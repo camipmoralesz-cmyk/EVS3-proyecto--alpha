@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block title %}FYAG | {{ titulo }}{% endblock %}
+{% block header_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% include "finanzas/_nav.html" %}
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+        <div>
+            <h1 class="h3 text-info mb-1"><i class="bi bi-file-earmark-text me-2"></i>{{ titulo }}</h1>
+            <p class="text-secondary mb-0">
+                {% if puede_modificar_borrador %}
+                Borrador editable; aún no genera movimientos de inventario.
+                {% else %}
+                Vista de solo lectura y valorización del documento.
+                {% endif %}
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if puede_modificar_borrador %}
+            <a href="{% url 'finanzas:factura_editar' documento.pk %}" class="btn btn-outline-warning">
+                <i class="bi bi-pencil me-1"></i> Editar borrador
+            </a>
+            <a href="{% url 'finanzas:factura_eliminar' documento.pk %}" class="btn btn-outline-danger">
+                <i class="bi bi-trash me-1"></i> Eliminar borrador
+            </a>
+            {% endif %}
+            <a href="{% url 'finanzas:facturas_lista' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Volver a facturas
+            </a>
+        </div>
+    </div>
+
+    <div class="card border-secondary bg-dark bg-opacity-50 shadow-sm mb-4">
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3 text-secondary">Proveedor</dt>
+                <dd class="col-sm-9">{{ documento.proveedor.razon_social }} ({{ documento.proveedor.rut }})</dd>
+                <dt class="col-sm-3 text-secondary">Fecha de emisión</dt>
+                <dd class="col-sm-9">{{ documento.fecha_emision|date:"d/m/Y" }}</dd>
+                <dt class="col-sm-3 text-secondary">Estado</dt>
+                <dd class="col-sm-9">{{ documento.get_estado_display }}</dd>
+                <dt class="col-sm-3 text-secondary">Registrado por</dt>
+                <dd class="col-sm-9">{{ documento.registrado_por|default:"-" }}</dd>
+                <dt class="col-sm-3 text-secondary">Observaciones</dt>
+                <dd class="col-sm-9">{{ documento.observaciones|default:"-" }}</dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="card border-secondary bg-dark bg-opacity-50 shadow-sm">
+        <div class="card-header border-secondary text-info fw-semibold">Valorización por artículo</div>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Artículo</th>
+                        <th class="text-end">Cantidad</th>
+                        <th class="text-end">Precio unitario final</th>
+                        <th class="text-end">Subtotal línea</th>
+                        <th class="text-end">PMP actual del artículo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for detalle in detalles %}
+                    <tr>
+                        <td>{{ detalle.articulo.codigo_interno }} — {{ detalle.articulo.nombre }}</td>
+                        <td class="text-end">{{ detalle.cantidad }} {{ detalle.articulo.get_unidad_medida_display }}</td>
+                        <td class="text-end">${{ detalle.precio_unitario_final }} CLP</td>
+                        <td class="text-end">${{ detalle.subtotal_linea }} CLP</td>
+                        <td class="text-end">${{ detalle.articulo.pmp_costo_actual }} CLP</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-secondary py-4">El documento no tiene líneas de detalle.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="3" class="text-end">Monto neto del documento</th>
+                        <th colspan="2" class="text-end text-success">${{ documento.monto_neto }} CLP</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    {% if not puede_modificar_borrador %}
+    <div class="card border-secondary bg-dark bg-opacity-50 shadow-sm mt-4">
+        <div class="card-header border-secondary text-info fw-semibold">Reportes a Gerencia</div>
+        <div class="card-body">
+            <form method="post" class="mb-4">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ formulario_observacion.texto.id_for_label }}">
+                        {{ formulario_observacion.texto.label }}
+                    </label>
+                    {{ formulario_observacion.texto }}
+                    {% for error in formulario_observacion.texto.errors %}
+                    <div class="text-danger small mt-1">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-flag me-1"></i> Reportar a Gerencia
+                </button>
+            </form>
+
+            <h2 class="h6 text-secondary">Reportes anteriores</h2>
+            {% for observacion in observaciones %}
+            <div class="border-top border-secondary py-3">
+                <div class="d-flex justify-content-between flex-wrap gap-2 mb-1">
+                    <span class="fw-semibold">{{ observacion.usuario }}</span>
+                    <span class="text-secondary small">
+                        {{ observacion.fecha|date:"d/m/Y H:i" }} · {{ observacion.estado }}
+                    </span>
+                </div>
+                <p class="mb-0">{{ observacion.texto|linebreaksbr }}</p>
+            </div>
+            {% empty %}
+            <p class="text-secondary mb-0">Todavía no hay reportes para esta factura.</p>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info mt-4">
+        Bodega debe confirmar este borrador desde Inventario. Hasta entonces, no se puede asociar a un pago ni modificar existencias.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

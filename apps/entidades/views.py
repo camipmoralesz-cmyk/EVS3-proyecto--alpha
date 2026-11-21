@@ -64,7 +64,7 @@ def _guardar_entidad(request, instancia=None):
     if request.method == 'POST':
         form = ProveedorForm(request.POST, instance=entidad)
         contactos_formset = ContactoFormSet(request.POST, instance=entidad)
-        cuentas_formset = CuentaFormSet(request.POST, instance=entidad)
+        cuentas_formset = CuentaFormSet(request.POST, instance=entidad, user=request.user)
 
         # Se evalúan los tres antes del "if" para que Django calcule los errores
         # de los tres (en Python, "a and b" no evalúa "b" si "a" ya dio False).
@@ -88,7 +88,7 @@ def _guardar_entidad(request, instancia=None):
     else:
         form = ProveedorForm(instance=entidad)
         contactos_formset = ContactoFormSet(instance=entidad)
-        cuentas_formset = CuentaFormSet(instance=entidad)
+        cuentas_formset = CuentaFormSet(instance=entidad, user=request.user)
 
     contexto = {
         'form': form,
