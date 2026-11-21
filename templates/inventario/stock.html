@@ -5,7 +5,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h3 class="fw-bold text-dark mb-0">
+        <h3 class="fw-bold text-white mb-0">
             <i class="bi bi-speedometer2 text-primary me-2"></i> Control de Stock en Tiempo Real
         </h3>
         <p class="text-muted small mb-0">
@@ -13,17 +13,17 @@
         </p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{% url 'registro_documento' %}" class="btn btn-primary btn-sm">
-            <i class="bi bi-file-earmark-plus me-1"></i> Ingreso por Documento (HU-01)
-        </a>
-        <a href="{% url 'historial_movimientos' %}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-clock-history me-1"></i> Auditoría / Kardex
-        </a>
+        {% if 'bodega' in mis_roles %}<a href="{% url 'registro_documento' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-file-earmark-plus me-1"></i> Ingreso por Documento
+        </a>{% endif %}
+        {% if 'bodega' in mis_roles or 'gerencia' in mis_roles or 'finanzas' in mis_roles %}<a href="{% url 'historial_movimientos' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-clock-history me-1"></i> Kardex
+        </a>{% endif %}
     </div>
 </div>
 
 <div class="card card-custom">
-    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0 fw-semibold text-primary">
             <i class="bi bi-box-seam me-2"></i> Existencias de Artículos y Materiales
         </h5>
@@ -34,7 +34,7 @@
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover table-bordered align-middle mb-0" id="tablaStock">
-                <thead class="table-light text-center small text-uppercase">
+                <thead class="text-center small text-uppercase">
                     <tr>
                         <th style="width: 130px;">Código Interno</th>
                         <th class="text-start">Nombre / Descripción</th>
@@ -53,10 +53,10 @@
                     {% for art in articulos %}
                     <tr class="fila-stock">
                         <td class="text-center">
-                            <span class="badge bg-light text-dark border font-monospace">{{ art.codigo_interno }}</span>
+                            <span class="badge bg-dark border border-secondary text-light font-monospace">{{ art.codigo_interno }}</span>
                         </td>
                         <td class="fw-semibold">{{ art.nombre }}</td>
-                        <td class="text-center"><span class="badge bg-secondary-subtle text-secondary">{{ art.categoria.nombre }}</span></td>
+                        <td class="text-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-emphasis">{{ art.categoria.nombre }}</span></td>
                         <td class="text-center text-muted small">{{ art.get_unidad_medida_display }}</td>
                         <td class="text-center small">{{ art.ubicacion_bodega }}</td>
                         <td class="text-center fw-bold fs-6 text-primary">{{ art.stock_actual }}</td>
@@ -79,7 +79,7 @@
                         <td colspan="11" class="text-center py-4 text-muted">
                             No hay artículos registrados aún en el catálogo maestro.
                             <br>
-                            <a href="{% url 'crear_articulo' %}" class="btn btn-sm btn-primary mt-2">Crear Primer Artículo</a>
+                            {% if 'bodega' in mis_roles or 'finanzas' in mis_roles %}<a href="{% url 'crear_articulo' %}" class="btn btn-sm btn-primary mt-2">Crear Primer Artículo</a>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}

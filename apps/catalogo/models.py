@@ -30,5 +30,8 @@ class Articulo(models.Model):
     pmp_costo_actual = models.IntegerField(default=0, verbose_name="Precio Medio Ponderado")
     ultimo_costo_compra = models.IntegerField(default=0, verbose_name="Último Costo de Compra")
 
+    # Los artículos no se eliminan: se desactivan (el historial del Cardex los referencia).
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+
     def __str__(self):
         return f"[{self.codigo_interno}] {self.nombre}"
