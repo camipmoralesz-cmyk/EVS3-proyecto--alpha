@@ -630,8 +630,10 @@ def lista_presupuestos_finanzas(request):
     for obra in lista_obras:
         tiene_movs = _obra_tiene_movimientos(obra)
         obra.tiene_movimientos = tiene_movs
+        obra.tiene_presupuesto = obra.presupuesto_total is not None
         obra.puede_borrar_presupuesto = (
-            obra.presupuesto_total > 0
+            obra.presupuesto_total is not None
+            and obra.presupuesto_total > 0
             and obra.estado != Obra.Estado.CERRADA
             and not tiene_movs
         )
@@ -660,10 +662,7 @@ def editar_presupuesto_finanzas(request, pk):
         if form.is_valid():
             obra.presupuesto_total = form.cleaned_data['presupuesto_total']
             obra.save(update_fields=['presupuesto_total'])
-            messages.success(
-                request,
-                f"Presupuesto de la obra '{obra.nombre}' actualizado a ${obra.presupuesto_total:,.2f}."
-            )
+            messages.success(request, f"Presupuesto de la obra '{obra.nombre}' actualizado.")
             return redirect('finanzas:presupuestos_lista')
         messages.error(request, "Por favor corrige los errores en el monto del presupuesto.")
     else:
@@ -680,14 +679,15 @@ def editar_presupuesto_finanzas(request, pk):
 @rol_requerido('finanzas')
 def eliminar_presupuesto_finanzas(request, pk):
     """
-    Pantalla de confirmación aparte para dejar en $0 el presupuesto_total de una
+    Pantalla de confirmación para eliminar el presupuesto_total asignado a una
     obra (sin borrar la obra), solo permitido si la obra no está cerrada ni tiene
     movimientos de inventario asociados.
     """
     obra = get_object_or_404(Obra.objects.select_related('mandante'), pk=pk)
     tiene_movs = _obra_tiene_movimientos(obra)
     puede_borrarse = (
-        obra.presupuesto_total > 0
+        obra.presupuesto_total is not None
+        and obra.presupuesto_total > 0
         and obra.estado != Obra.Estado.CERRADA
         and not tiene_movs
     )
@@ -701,11 +701,11 @@ def eliminar_presupuesto_finanzas(request, pk):
             )
             return redirect('finanzas:presupuestos_lista')
 
-        obra.presupuesto_total = Decimal('0.00')
+        obra.presupuesto_total = None
         obra.save(update_fields=['presupuesto_total'])
         messages.success(
             request,
-            f"El presupuesto de la obra '{obra.nombre}' fue dejado en $0.00."
+            f"El presupuesto de la obra '{obra.nombre}' fue eliminado. La obra se conservó."
         )
         return redirect('finanzas:presupuestos_lista')
 

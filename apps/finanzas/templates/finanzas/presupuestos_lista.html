@@ -92,7 +92,11 @@
                             {% endif %}
                         </td>
                         <td class="text-end fw-bold font-monospace text-info">
-                            ${{ obra.presupuesto_total|floatformat:2 }}
+                            {% if obra.tiene_presupuesto %}
+                                ${{ obra.presupuesto_total|floatformat:2 }}
+                            {% else %}
+                                <span class="text-secondary">Sin presupuesto</span>
+                            {% endif %}
                         </td>
                         <td class="text-end">
                             <div class="d-inline-flex gap-1">

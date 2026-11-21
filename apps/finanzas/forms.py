@@ -101,6 +101,10 @@ class PresupuestoObraForm(forms.ModelForm):
             }),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['presupuesto_total'].required = True
+
     def clean_presupuesto_total(self):
         monto = self.cleaned_data.get('presupuesto_total')
         if monto is not None and monto < 0:
@@ -128,6 +132,10 @@ class ObraForm(forms.ModelForm):
             }),
             'estado': forms.Select(attrs={'class': 'form-select'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['presupuesto_total'].required = True
 
 
 class BorradorFacturaForm(forms.ModelForm):

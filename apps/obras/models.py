@@ -33,6 +33,8 @@ class Obra(models.Model):
         max_digits=14,
         decimal_places=2,
         default=0,
+        null=True,
+        blank=True,
         verbose_name="Presupuesto total"
     )
 
@@ -66,7 +68,7 @@ class Obra(models.Model):
                     'mandante': 'El mandante seleccionado debe estar activo.'
                 })
 
-        if self.presupuesto_total < 0:
+        if self.presupuesto_total is not None and self.presupuesto_total < 0:
             raise ValidationError({
                 'presupuesto_total': 'El presupuesto no puede ser negativo.'
             })

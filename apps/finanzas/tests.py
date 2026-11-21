@@ -343,7 +343,15 @@ class FinanzasPresupuestosTests(BaseFinanzasTestCase):
         self.obra.refresh_from_db()
         self.assertEqual(self.obra.presupuesto_total, Decimal('15000000.00'))
 
-    def test_borrar_presupuesto_en_obra_activa_lo_deja_en_cero(self):
+    def test_editar_presupuesto_no_permite_vaciarlo_fuera_de_la_accion_eliminar(self):
+        url = reverse('finanzas:presupuesto_editar', args=[self.obra.pk])
+        respuesta = self.client.post(url, data={'presupuesto_total': ''})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.obra.refresh_from_db()
+        self.assertEqual(self.obra.presupuesto_total, Decimal('15000000.00'))
+
+    def test_borrar_presupuesto_en_obra_activa_lo_elimina_y_conserva_obra(self):
         url = reverse('finanzas:presupuesto_eliminar', args=[self.obra.pk])
         r_get = self.client.get(url)
         self.assertEqual(r_get.status_code, 200)
@@ -352,8 +360,10 @@ class FinanzasPresupuestosTests(BaseFinanzasTestCase):
         r_post = self.client.post(url)
         self.assertRedirects(r_post, reverse('finanzas:presupuestos_lista'))
         self.obra.refresh_from_db()
-        self.assertEqual(self.obra.presupuesto_total, Decimal('0.00'))
+        self.assertIsNone(self.obra.presupuesto_total)
         self.assertTrue(Obra.objects.filter(pk=self.obra.pk).exists())
+        respuesta_lista = self.client.get(reverse('finanzas:presupuestos_lista'))
+        self.assertContains(respuesta_lista, 'Sin presupuesto')
 
     def test_no_permite_borrar_presupuesto_en_obra_cerrada(self):
         self.obra.estado = Obra.Estado.CERRADA
