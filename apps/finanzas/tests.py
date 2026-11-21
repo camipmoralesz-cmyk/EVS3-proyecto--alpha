@@ -379,6 +379,7 @@ class FinanzasFacturasTests(BaseFinanzasTestCase):
             rut='76.543.210-3',
             razon_social='Proveedor de Prueba SpA',
         )
+        cls.proveedor = proveedor
         categoria = Categoria.objects.create(nombre='Materiales de prueba')
         articulo = Articulo.objects.create(
             codigo_interno='FIN-001',
@@ -387,6 +388,7 @@ class FinanzasFacturasTests(BaseFinanzasTestCase):
             ubicacion_bodega='Bodega central',
             pmp_costo_actual=1250,
         )
+        cls.articulo = articulo
         cls.documento = DocumentoEntrada.objects.create(
             proveedor=proveedor,
             numero_documento='F-1001',
@@ -473,6 +475,131 @@ class FinanzasFacturasTests(BaseFinanzasTestCase):
         self.assertEqual(detalle.status_code, 403)
         self.assertEqual(reporte.status_code, 403)
         self.assertFalse(ObservacionFactura.objects.filter(documento=self.documento).exists())
+
+    def _crear_borrador(self):
+        documento = DocumentoEntrada.objects.create(
+            proveedor=self.proveedor,
+            numero_documento='BORRADOR-200',
+            fecha_emision=date(2026, 11, 1),
+            estado=DocumentoEntrada.ESTADO_BORRADOR,
+        )
+        DetalleDocumento.objects.create(
+            documento=documento,
+            articulo=self.articulo,
+            cantidad=Decimal('2.00'),
+            precio_unitario_base=1300,
+            precio_unitario_final=1250,
+            subtotal_linea=2500,
+        )
+        return documento
+
+    def test_finanzas_crea_y_edita_borrador_sin_modificar_inventario(self):
+        self.client.force_login(self.user_finanzas)
+        url = reverse('finanzas:factura_crear')
+        formulario_creacion = self.client.get(url)
+        self.assertEqual(formulario_creacion.status_code, 200)
+        self.assertContains(formulario_creacion, 'Guardar borrador')
+        datos = {
+            'proveedor': self.proveedor.pk,
+            'tipo_documento': DocumentoEntrada.TIPO_FACTURA,
+            'numero_documento': 'BORRADOR-201',
+            'fecha_emision': '2026-11-02',
+            'observaciones': 'Pendiente de recepción física',
+            'lineas': [{
+                'articulo_id': self.articulo.pk,
+                'cantidad': '2',
+                'precio_unitario_base': 1500,
+                'descuento_1_porcentaje': 0,
+                'descuento_2_porcentaje': 0,
+                'descuento_3_porcentaje': 0,
+            }],
+        }
+        datos_otro_documento = {**datos, 'numero_documento': 'BOLETA-201'}
+        datos_otro_documento['tipo_documento'] = DocumentoEntrada.TIPO_BOLETA
+        respuesta_tipo_invalido = self.client.post(
+            url,
+            datos_otro_documento,
+            content_type='application/json',
+        )
+        self.assertEqual(respuesta_tipo_invalido.status_code, 400)
+        self.assertFalse(
+            DocumentoEntrada.objects.filter(numero_documento='BOLETA-201').exists(),
+        )
+
+        respuesta = self.client.post(url, datos, content_type='application/json')
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json()['status'], 'ok')
+        borrador = DocumentoEntrada.objects.get(numero_documento='BORRADOR-201')
+        self.assertEqual(borrador.estado, DocumentoEntrada.ESTADO_BORRADOR)
+        self.assertEqual(borrador.monto_neto, 3000)
+        self.assertEqual(borrador.detalles.count(), 1)
+        self.articulo.refresh_from_db()
+        self.assertEqual(self.articulo.stock_actual, Decimal('0.00'))
+        self.assertFalse(borrador.movimientos_generados.exists())
+
+        formulario_edicion = self.client.get(
+            reverse('finanzas:factura_editar', args=[borrador.pk]),
+        )
+        self.assertEqual(formulario_edicion.status_code, 200)
+        self.assertContains(formulario_edicion, 'Editar borrador')
+
+        datos['numero_documento'] = 'BORRADOR-201-EDITADO'
+        respuesta_edicion = self.client.post(
+            reverse('finanzas:factura_editar', args=[borrador.pk]),
+            datos,
+            content_type='application/json',
+        )
+
+        self.assertEqual(respuesta_edicion.status_code, 200)
+        borrador.refresh_from_db()
+        self.assertEqual(borrador.numero_documento, 'BORRADOR-201-EDITADO')
+
+    def test_finanzas_no_edita_confirmada_y_bodega_confirma_borrador_una_vez(self):
+        borrador = self._crear_borrador()
+        self.client.force_login(self.user_finanzas)
+
+        self.assertEqual(
+            self.client.get(
+                reverse('finanzas:factura_editar', args=[self.documento.pk]),
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse('confirmar_borrador', args=[borrador.pk]),
+            ).status_code,
+            403,
+        )
+
+        self.client.force_login(self.user_bodega)
+        url = reverse('confirmar_borrador', args=[borrador.pk])
+        detalle_bodega = self.client.get(
+            reverse('detalle_documento', args=[borrador.pk]),
+        )
+        self.assertEqual(detalle_bodega.status_code, 200)
+        self.assertContains(detalle_bodega, 'Confirmar ingreso a inventario')
+        primera_confirmacion = self.client.post(url)
+        segunda_confirmacion = self.client.post(url)
+
+        self.assertEqual(primera_confirmacion.status_code, 302)
+        self.assertEqual(segunda_confirmacion.status_code, 302)
+        borrador.refresh_from_db()
+        self.articulo.refresh_from_db()
+        self.assertEqual(borrador.estado, DocumentoEntrada.ESTADO_CONFIRMADO)
+        self.assertEqual(self.articulo.stock_actual, Decimal('2.00'))
+        self.assertEqual(borrador.movimientos_generados.count(), 1)
+
+    def test_finanzas_elimina_borrador_sin_registros_asociados(self):
+        borrador = self._crear_borrador()
+        self.client.force_login(self.user_finanzas)
+
+        respuesta = self.client.post(
+            reverse('finanzas:factura_eliminar', args=[borrador.pk]),
+        )
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertFalse(DocumentoEntrada.objects.filter(pk=borrador.pk).exists())
 
 
 class FinanzasPagosTests(BaseFinanzasTestCase):

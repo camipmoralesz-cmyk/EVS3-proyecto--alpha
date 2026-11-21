@@ -1,13 +1,18 @@
 from decimal import Decimal
+import json
 import re
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
 from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Replace
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from apps.catalogo.models import Articulo
 from apps.entidades.forms import ContactoFormSet, CuentaFormSet, ProveedorForm
 from apps.entidades.models import Proveedor
 from apps.inventario.models import DocumentoEntrada
@@ -15,6 +20,8 @@ from apps.obras.models import Obra
 from apps.usuarios.roles import rol_requerido
 
 from .forms import (
+    BorradorFacturaForm,
+    DetalleBorradorFacturaForm,
     ObraForm,
     ObservacionFacturaForm,
     PagoProveedorForm,
@@ -45,6 +52,7 @@ def panel_finanzas(request):
     saldo_disponible = saldo_inicial.monto - pagos_efectuados
     facturas_count = DocumentoEntrada.objects.filter(
         tipo_documento=DocumentoEntrada.TIPO_FACTURA,
+        estado=DocumentoEntrada.ESTADO_CONFIRMADO,
     ).count()
     pagos_pendientes_count = PagoProveedor.objects.filter(
         estado=PagoProveedor.Estado.PENDIENTE,
@@ -97,6 +105,12 @@ def detalle_factura_finanzas(request, pk):
         pk=pk,
     )
     detalles = documento.detalles.select_related('articulo').all()
+    puede_modificar_borrador = (
+        documento.estado == DocumentoEntrada.ESTADO_BORRADOR
+    )
+    if request.method == 'POST' and puede_modificar_borrador:
+        raise PermissionDenied
+
     if request.method == 'POST':
         formulario_observacion = ObservacionFacturaForm(request.POST)
         if formulario_observacion.is_valid():
@@ -106,8 +120,10 @@ def detalle_factura_finanzas(request, pk):
             observacion.save()
             messages.success(request, 'El reporte fue enviado a Gerencia.')
             return redirect('finanzas:factura_detalle', pk=documento.pk)
-    else:
+    elif not puede_modificar_borrador:
         formulario_observacion = ObservacionFacturaForm()
+    else:
+        formulario_observacion = None
 
     return render(request, 'finanzas/factura_detalle.html', {
         'titulo': f'{documento.get_tipo_documento_display()} N° {documento.numero_documento}',
@@ -115,6 +131,204 @@ def detalle_factura_finanzas(request, pk):
         'detalles': detalles,
         'formulario_observacion': formulario_observacion,
         'observaciones': documento.observaciones_finanzas.select_related('usuario').all(),
+        'puede_modificar_borrador': puede_modificar_borrador,
+    })
+
+
+def _borrador_lineas_formset_data(lineas):
+    if not isinstance(lineas, list) or not lineas:
+        return None, 'El borrador debe tener al menos una línea de artículo.'
+
+    formularios = []
+    errores = []
+    for indice, linea in enumerate(lineas, start=1):
+        if not isinstance(linea, dict):
+            errores.append(f'Línea {indice}: formato inválido.')
+            continue
+        formulario = DetalleBorradorFacturaForm(data={
+            'articulo': linea.get('articulo_id'),
+            'cantidad': linea.get('cantidad'),
+            'precio_unitario_base': linea.get('precio_unitario_base'),
+            'descuento_1_porcentaje': linea.get('descuento_1_porcentaje', 0),
+            'descuento_2_porcentaje': linea.get('descuento_2_porcentaje', 0),
+            'descuento_3_porcentaje': linea.get('descuento_3_porcentaje', 0),
+        })
+        if not formulario.is_valid():
+            errores.append(f'Línea {indice}: {formulario.errors.as_text()}')
+        formularios.append(formulario)
+
+    if errores:
+        return None, ' '.join(errores)
+    return formularios, None
+
+
+def _guardar_borrador_factura(request, documento=None):
+    try:
+        datos = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Los datos del borrador no tienen un formato válido.',
+        }, status=400)
+
+    if not isinstance(datos, dict):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Los datos del borrador no tienen un formato válido.',
+        }, status=400)
+
+    with transaction.atomic():
+        if documento is not None:
+            documento = DocumentoEntrada.objects.select_for_update().filter(
+                pk=documento.pk,
+                estado=DocumentoEntrada.ESTADO_BORRADOR,
+            ).first()
+            if documento is None:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'La factura ya fue confirmada y no se puede editar.',
+                }, status=409)
+
+        formulario = BorradorFacturaForm(data=datos, instance=documento)
+        if not formulario.is_valid():
+            return JsonResponse({
+                'status': 'error',
+                'message': formulario.errors.as_text(),
+            }, status=400)
+
+        formularios_lineas, error_lineas = _borrador_lineas_formset_data(
+            datos.get('lineas'),
+        )
+        if error_lineas:
+            return JsonResponse({
+                'status': 'error',
+                'message': error_lineas,
+            }, status=400)
+
+        if documento and (
+            documento.pagos_proveedor.exists()
+            or documento.observaciones_finanzas.exists()
+            or documento.movimientos_generados.exists()
+        ):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No se puede editar un borrador con pagos, reportes o movimientos asociados.',
+            }, status=409)
+
+        borrador = formulario.save(commit=False)
+        borrador.estado = DocumentoEntrada.ESTADO_BORRADOR
+        if documento is None:
+            borrador.registrado_por = request.user
+        borrador.save()
+        borrador.detalles.all().delete()
+        total_neto = 0
+        for formulario_linea in formularios_lineas:
+            detalle = formulario_linea.guardar(borrador)
+            total_neto += detalle.subtotal_linea
+        borrador.monto_neto = total_neto
+        borrador.save(update_fields=['monto_neto'])
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'El borrador fue guardado sin modificar el inventario.',
+        'redirect_url': reverse('finanzas:factura_detalle', args=[borrador.pk]),
+    })
+
+
+def _contexto_formulario_borrador(documento=None):
+    detalles = []
+    if documento is not None:
+        detalles = [
+            {
+                'articulo_id': detalle.articulo_id,
+                'cantidad': str(detalle.cantidad),
+                'precio_unitario_base': detalle.precio_unitario_base,
+                'descuento_1_porcentaje': str(detalle.descuento_1_porcentaje),
+                'descuento_2_porcentaje': str(detalle.descuento_2_porcentaje),
+                'descuento_3_porcentaje': str(detalle.descuento_3_porcentaje),
+            }
+            for detalle in documento.detalles.all()
+        ]
+    return {
+        'modo_finanzas': True,
+        'documento': documento,
+        'proveedores': Proveedor.objects.filter(
+            tipo=Proveedor.Tipo.PROVEEDOR,
+            activo=True,
+        ),
+        'articulos': Articulo.objects.all().order_by('nombre'),
+        'lineas_iniciales': detalles,
+    }
+
+
+@rol_requerido('finanzas')
+@require_http_methods(['GET', 'POST'])
+def crear_factura_borrador_finanzas(request):
+    if request.method == 'POST':
+        return _guardar_borrador_factura(request)
+    contexto = _contexto_formulario_borrador()
+    contexto['titulo'] = 'Crear borrador de factura'
+    contexto['url_guardado'] = reverse('finanzas:factura_crear')
+    return render(request, 'inventario/registro_documento.html', contexto)
+
+
+@rol_requerido('finanzas')
+@require_http_methods(['GET', 'POST'])
+def editar_factura_borrador_finanzas(request, pk):
+    documento = get_object_or_404(
+        DocumentoEntrada,
+        pk=pk,
+        estado=DocumentoEntrada.ESTADO_BORRADOR,
+    )
+    if request.method == 'POST':
+        return _guardar_borrador_factura(request, documento=documento)
+    contexto = _contexto_formulario_borrador(documento)
+    contexto['titulo'] = f'Editar borrador: {documento.numero_documento}'
+    contexto['url_guardado'] = reverse('finanzas:factura_editar', args=[pk])
+    return render(request, 'inventario/registro_documento.html', contexto)
+
+
+@rol_requerido('finanzas')
+@require_http_methods(['GET', 'POST'])
+def eliminar_factura_borrador_finanzas(request, pk):
+    documento = get_object_or_404(
+        DocumentoEntrada,
+        pk=pk,
+        estado=DocumentoEntrada.ESTADO_BORRADOR,
+    )
+    tiene_asociados = (
+        documento.pagos_proveedor.exists()
+        or documento.observaciones_finanzas.exists()
+        or documento.movimientos_generados.exists()
+    )
+    if request.method == 'POST':
+        with transaction.atomic():
+            documento = DocumentoEntrada.objects.select_for_update().filter(
+                pk=pk,
+                estado=DocumentoEntrada.ESTADO_BORRADOR,
+            ).first()
+            if documento is None:
+                messages.error(request, 'El borrador ya no está disponible para eliminar.')
+                return redirect('finanzas:facturas_lista')
+            tiene_asociados = (
+                documento.pagos_proveedor.exists()
+                or documento.observaciones_finanzas.exists()
+                or documento.movimientos_generados.exists()
+            )
+            if tiene_asociados:
+                messages.error(
+                    request,
+                    'No se puede eliminar el borrador porque tiene registros asociados.',
+                )
+                return redirect('finanzas:factura_detalle', pk=pk)
+            documento.delete()
+        messages.success(request, 'El borrador de factura fue eliminado.')
+        return redirect('finanzas:facturas_lista')
+
+    return render(request, 'finanzas/factura_borrador_confirmar_eliminar.html', {
+        'titulo': 'Confirmar eliminación del borrador',
+        'documento': documento,
+        'tiene_asociados': tiene_asociados,
     })
 
 

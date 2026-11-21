@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}FYAG | {{ titulo }}{% endblock %}
+{% block header_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% include "finanzas/_nav.html" %}
+    <div class="card border-secondary bg-dark bg-opacity-50 shadow-sm">
+        <div class="card-body">
+            <h1 class="h4 text-danger">{{ titulo }}</h1>
+            <p>
+                ¿Eliminar el borrador {{ documento.get_tipo_documento_display }}
+                N° {{ documento.numero_documento }} del proveedor
+                {{ documento.proveedor.razon_social }}?
+            </p>
+            {% if tiene_asociados %}
+            <div class="alert alert-warning">
+                Este borrador tiene pagos, reportes o movimientos asociados y no se puede eliminar.
+            </div>
+            {% else %}
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">Eliminar borrador</button>
+            </form>
+            {% endif %}
+            <a href="{% url 'finanzas:factura_detalle' documento.pk %}" class="btn btn-outline-secondary mt-3">
+                Cancelar
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

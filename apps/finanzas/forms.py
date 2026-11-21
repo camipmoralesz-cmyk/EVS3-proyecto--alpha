@@ -1,8 +1,16 @@
+from decimal import Decimal
+
 from django import forms
 from django.db.models import Sum
 from django.utils.formats import number_format
 
-from apps.inventario.models import DocumentoEntrada
+from apps.catalogo.models import Articulo
+from apps.entidades.models import Proveedor
+from apps.inventario.models import DocumentoEntrada, DetalleDocumento
+from apps.inventario.services import (
+    calcular_descuentos_sucesivos,
+    calcular_subtotal_linea,
+)
 from apps.obras.models import Obra
 
 from .models import ObservacionFactura, PagoProveedor
@@ -48,6 +56,8 @@ class PagoProveedorForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['documento'].queryset = DocumentoEntrada.objects.select_related(
             'proveedor',
+        ).filter(
+            estado=DocumentoEntrada.ESTADO_CONFIRMADO,
         ).order_by('-fecha_emision', '-id')
 
     def clean(self):
@@ -118,3 +128,118 @@ class ObraForm(forms.ModelForm):
             }),
             'estado': forms.Select(attrs={'class': 'form-select'}),
         }
+
+
+class BorradorFacturaForm(forms.ModelForm):
+    class Meta:
+        model = DocumentoEntrada
+        fields = [
+            'proveedor',
+            'tipo_documento',
+            'numero_documento',
+            'fecha_emision',
+            'observaciones',
+        ]
+        widgets = {
+            'proveedor': forms.Select(attrs={'class': 'form-select'}),
+            'tipo_documento': forms.Select(attrs={'class': 'form-select'}),
+            'numero_documento': forms.TextInput(attrs={'class': 'form-control'}),
+            'fecha_emision': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }),
+            'observaciones': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['proveedor'].queryset = Proveedor.objects.filter(
+            tipo=Proveedor.Tipo.PROVEEDOR,
+            activo=True,
+        )
+
+    def clean_tipo_documento(self):
+        tipo_documento = self.cleaned_data['tipo_documento']
+        if tipo_documento != DocumentoEntrada.TIPO_FACTURA:
+            raise forms.ValidationError(
+                'Finanzas solo puede crear borradores de facturas.',
+            )
+        return tipo_documento
+
+
+class DetalleBorradorFacturaForm(forms.Form):
+    articulo = forms.ModelChoiceField(queryset=Articulo.objects.none())
+    cantidad = forms.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0.01'),
+    )
+    precio_unitario_base = forms.IntegerField(min_value=0)
+    descuento_1_porcentaje = forms.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        min_value=Decimal('0'),
+        max_value=Decimal('100'),
+        required=False,
+        initial=Decimal('0'),
+    )
+    descuento_2_porcentaje = forms.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        min_value=Decimal('0'),
+        max_value=Decimal('100'),
+        required=False,
+        initial=Decimal('0'),
+    )
+    descuento_3_porcentaje = forms.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        min_value=Decimal('0'),
+        max_value=Decimal('100'),
+        required=False,
+        initial=Decimal('0'),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['articulo'].queryset = Articulo.objects.order_by('nombre')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if any(name not in cleaned_data for name in (
+            'cantidad',
+            'precio_unitario_base',
+            'descuento_1_porcentaje',
+            'descuento_2_porcentaje',
+            'descuento_3_porcentaje',
+        )):
+            return cleaned_data
+
+        descuentos = (
+            cleaned_data['descuento_1_porcentaje'] or Decimal('0'),
+            cleaned_data['descuento_2_porcentaje'] or Decimal('0'),
+            cleaned_data['descuento_3_porcentaje'] or Decimal('0'),
+        )
+        precio_final = calcular_descuentos_sucesivos(
+            cleaned_data['precio_unitario_base'],
+            *descuentos,
+        )
+        cleaned_data['precio_unitario_final'] = precio_final
+        cleaned_data['subtotal_linea'] = calcular_subtotal_linea(
+            precio_final,
+            cleaned_data['cantidad'],
+        )
+        return cleaned_data
+
+    def guardar(self, documento):
+        return DetalleDocumento.objects.create(
+            documento=documento,
+            articulo=self.cleaned_data['articulo'],
+            cantidad=self.cleaned_data['cantidad'],
+            precio_unitario_base=self.cleaned_data['precio_unitario_base'],
+            descuento_1_porcentaje=self.cleaned_data['descuento_1_porcentaje'] or 0,
+            descuento_2_porcentaje=self.cleaned_data['descuento_2_porcentaje'] or 0,
+            descuento_3_porcentaje=self.cleaned_data['descuento_3_porcentaje'] or 0,
+            precio_unitario_final=self.cleaned_data['precio_unitario_final'],
+            subtotal_linea=self.cleaned_data['subtotal_linea'],
+        )
