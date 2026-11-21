@@ -288,16 +288,6 @@ def exportar_cardex_pdf(request):
     response['Content-Disposition'] = f'attachment; filename="cardex_auditoria_{fecha_str}.pdf"'
     return response
 
-def usuario_puede_auditar(user):
-    if not user.is_authenticated:
-        return False
-    if user.is_superuser:
-        return True
-    roles_permitidos = {'ADMINISTRADOR_GENERAL', 'GERENCIA', 'AUDITOR', 'CONSULTA', 'FINANZAS'}
-    grupos_usuario = {g.name.upper() for g in user.groups.all()}
-    rol_attr = getattr(user, 'rol', '').upper()
-    return bool(grupos_usuario & roles_permitidos) or (rol_attr in roles_permitidos)
-
 
 def usuario_es_admin_general(user):
     if not user.is_authenticated:
