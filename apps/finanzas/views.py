@@ -14,7 +14,12 @@ from apps.inventario.models import DocumentoEntrada
 from apps.obras.models import Obra
 from apps.usuarios.roles import rol_requerido
 
-from .forms import ObservacionFacturaForm, PagoProveedorForm, PresupuestoObraForm
+from .forms import (
+    ObraForm,
+    ObservacionFacturaForm,
+    PagoProveedorForm,
+    PresupuestoObraForm,
+)
 from .models import PagoProveedor, SaldoInicialEmpresa
 
 
@@ -172,6 +177,36 @@ def editar_pago_finanzas(request, pk):
         pk=pk,
     )
     return _guardar_pago_finanzas(request, pago=pago)
+
+
+@rol_requerido('finanzas')
+@require_http_methods(['GET', 'POST'])
+def eliminar_pago_finanzas(request, pk):
+    pago = get_object_or_404(
+        PagoProveedor.objects.select_related('documento', 'documento__proveedor'),
+        pk=pk,
+    )
+    puede_eliminar = pago.estado == PagoProveedor.Estado.PENDIENTE
+    puede_anular = pago.estado == PagoProveedor.Estado.PAGADO
+
+    if request.method == 'POST':
+        if puede_eliminar:
+            pago.delete()
+            messages.success(request, 'El pago pendiente fue eliminado.')
+        elif puede_anular:
+            pago.estado = PagoProveedor.Estado.ANULADO
+            pago.save(update_fields=['estado'])
+            messages.success(request, 'El pago pagado fue anulado y se conservó su registro.')
+        else:
+            messages.error(request, 'Los pagos anulados se conservan y no se pueden eliminar.')
+        return redirect('finanzas:pagos_lista')
+
+    return render(request, 'finanzas/pago_confirmar_eliminar.html', {
+        'titulo': 'Confirmar acción sobre el pago',
+        'pago': pago,
+        'puede_eliminar': puede_eliminar,
+        'puede_anular': puede_anular,
+    })
 
 
 @rol_requerido('finanzas')
@@ -335,6 +370,24 @@ def eliminar_entidad_finanzas(request, pk):
 # ==============================================================================
 # ETAPA 3 - PRESUPUESTOS DE OBRAS (listar obras y editar presupuesto_total)
 # ==============================================================================
+
+@rol_requerido('finanzas')
+@require_http_methods(['GET', 'POST'])
+def crear_obra_finanzas(request):
+    form = ObraForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        obra = form.save()
+        messages.success(
+            request,
+            f"Obra '{obra.nombre}' y su presupuesto inicial fueron registrados.",
+        )
+        return redirect('finanzas:presupuestos_lista')
+
+    return render(request, 'finanzas/obra_form.html', {
+        'titulo': 'Crear obra y presupuesto',
+        'form': form,
+    })
+
 
 @rol_requerido('finanzas')
 def lista_presupuestos_finanzas(request):

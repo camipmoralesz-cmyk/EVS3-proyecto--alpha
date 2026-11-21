@@ -96,3 +96,25 @@ class PresupuestoObraForm(forms.ModelForm):
         if monto is not None and monto < 0:
             raise forms.ValidationError('El presupuesto no puede ser negativo.')
         return monto
+
+
+class ObraForm(forms.ModelForm):
+    class Meta:
+        model = Obra
+        fields = ['nombre', 'mandante', 'presupuesto_total', 'estado']
+        labels = {
+            'nombre': 'Nombre de la obra',
+            'mandante': 'Cliente mandante',
+            'presupuesto_total': 'Presupuesto inicial (CLP)',
+            'estado': 'Estado',
+        }
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control'}),
+            'mandante': forms.Select(attrs={'class': 'form-select'}),
+            'presupuesto_total': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0',
+                'step': '0.01',
+            }),
+            'estado': forms.Select(attrs={'class': 'form-select'}),
+        }

@@ -301,6 +301,32 @@ class FinanzasPresupuestosTests(BaseFinanzasTestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Cámara de Frío San Carlos')
         self.assertContains(r, 'Agroexportadora Ñuble S.A.')
+        self.assertContains(r, reverse('finanzas:obra_crear'))
+
+    def test_crear_obra_con_mandante_y_presupuesto_inicial(self):
+        url = reverse('finanzas:obra_crear')
+        respuesta = self.client.post(url, {
+            'nombre': 'Bodega de prueba',
+            'mandante': self.mandante.pk,
+            'presupuesto_total': '7500000.00',
+            'estado': Obra.Estado.ACTIVA,
+        })
+
+        self.assertRedirects(respuesta, reverse('finanzas:presupuestos_lista'))
+        obra = Obra.objects.get(nombre='Bodega de prueba')
+        self.assertEqual(obra.mandante, self.mandante)
+        self.assertEqual(obra.presupuesto_total, Decimal('7500000.00'))
+
+    def test_no_crear_obra_con_presupuesto_negativo(self):
+        respuesta = self.client.post(reverse('finanzas:obra_crear'), {
+            'nombre': 'Obra con presupuesto inválido',
+            'mandante': self.mandante.pk,
+            'presupuesto_total': '-1.00',
+            'estado': Obra.Estado.ACTIVA,
+        })
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertFalse(Obra.objects.filter(nombre='Obra con presupuesto inválido').exists())
 
     def test_editar_presupuesto_total_valido(self):
         url = reverse('finanzas:presupuesto_editar', args=[self.obra.pk])
@@ -509,6 +535,64 @@ class FinanzasPagosTests(BaseFinanzasTestCase):
         pago.refresh_from_db()
         self.assertEqual(pago.monto, Decimal('15000.00'))
         self.assertEqual(pago.usuario, self.user_bodega)
+
+    def test_borrar_pago_pendiente_con_pantalla_de_confirmacion(self):
+        pago = PagoProveedor.objects.create(
+            documento=self.documento,
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PENDIENTE,
+            usuario=self.user_finanzas,
+        )
+        url = reverse('finanzas:pago_eliminar', args=[pago.pk])
+
+        confirmacion = self.client.get(url)
+        self.assertEqual(confirmacion.status_code, 200)
+        self.assertContains(confirmacion, 'puede eliminarse físicamente')
+        respuesta = self.client.post(url)
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        self.assertFalse(PagoProveedor.objects.filter(pk=pago.pk).exists())
+
+    def test_anular_pago_pagado_conserva_el_registro_y_restaura_saldo(self):
+        pago = PagoProveedor.objects.create(
+            documento=self.documento,
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PAGADO,
+            usuario=self.user_finanzas,
+        )
+        url = reverse('finanzas:pago_eliminar', args=[pago.pk])
+
+        confirmacion = self.client.get(url)
+        self.assertEqual(confirmacion.status_code, 200)
+        self.assertContains(confirmacion, 'se conservará su registro')
+        respuesta = self.client.post(url)
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        pago.refresh_from_db()
+        self.assertEqual(pago.estado, PagoProveedor.Estado.ANULADO)
+        panel = self.client.get(reverse('finanzas:panel'))
+        self.assertEqual(panel.context['pagos_efectuados'], Decimal('0.00'))
+        self.assertEqual(panel.context['saldo_disponible'], Decimal('30000.00'))
+
+    def test_pago_anulado_no_se_elimina(self):
+        pago = PagoProveedor.objects.create(
+            documento=self.documento,
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.ANULADO,
+            usuario=self.user_finanzas,
+        )
+        url = reverse('finanzas:pago_eliminar', args=[pago.pk])
+
+        confirmacion = self.client.get(url)
+        self.assertEqual(confirmacion.status_code, 200)
+        self.assertContains(confirmacion, 'se conserva en el historial')
+        respuesta = self.client.post(url)
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        self.assertTrue(PagoProveedor.objects.filter(pk=pago.pk).exists())
 
     def test_rechazar_pago_mayor_al_neto_del_documento(self):
         respuesta = self.client.post(

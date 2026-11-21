@@ -74,6 +74,13 @@
                                 <a class="btn btn-sm btn-outline-info" href="{% url 'finanzas:pago_editar' pago.pk %}">
                                     <i class="bi bi-pencil-square me-1"></i> Editar
                                 </a>
+                                {% if pago.estado != 'ANULADO' %}
+                                <a class="btn btn-sm {% if pago.estado == 'PAGADO' %}btn-outline-warning{% else %}btn-outline-danger{% endif %}"
+                                   href="{% url 'finanzas:pago_eliminar' pago.pk %}">
+                                    <i class="bi {% if pago.estado == 'PAGADO' %}bi-slash-circle{% else %}bi-trash{% endif %} me-1"></i>
+                                    {% if pago.estado == 'PAGADO' %}Anular{% else %}Borrar{% endif %}
+                                </a>
+                                {% endif %}
                             </td>
                         </tr>
                         {% empty %}

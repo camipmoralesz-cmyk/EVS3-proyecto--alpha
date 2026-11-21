@@ -12,12 +12,17 @@
             <i class="bi bi-calculator text-info me-2"></i> Presupuestos de Obras
         </h3>
         <p class="text-secondary small mb-0">
-            Consulta de obras registradas y asignación/edición de presupuesto total por faena (sin creación de obras).
+            Crea obras y administra el presupuesto total asignado a cada faena.
         </p>
     </div>
-    <div class="badge bg-info bg-opacity-10 border border-info text-info fs-6 px-3 py-2">
-        <i class="bi bi-cash-stack me-1"></i>
-        Presupuesto Total Acumulado: <strong>${{ total_presupuestos|floatformat:2 }}</strong>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="badge bg-info bg-opacity-10 border border-info text-info fs-6 px-3 py-2">
+            <i class="bi bi-cash-stack me-1"></i>
+            Presupuesto Total Acumulado: <strong>${{ total_presupuestos|floatformat:2 }}</strong>
+        </div>
+        <a href="{% url 'finanzas:obra_crear' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Crear obra y presupuesto
+        </a>
     </div>
 </div>
 
