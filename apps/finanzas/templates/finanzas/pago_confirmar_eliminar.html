@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}FYAG | {{ titulo }}{% endblock %}
+{% block header_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% include "finanzas/_nav.html" %}
+
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card border-warning bg-dark bg-opacity-50 shadow-sm">
+                <div class="card-header border-warning">
+                    <h1 class="h4 text-warning mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>{{ titulo }}
+                    </h1>
+                </div>
+                <div class="card-body p-4">
+                    <ul class="list-group list-group-flush mb-4 border border-secondary rounded">
+                        <li class="list-group-item bg-dark text-light">
+                            <strong>Documento:</strong> {{ pago.documento.get_tipo_documento_display }} N° {{ pago.documento.numero_documento }}
+                        </li>
+                        <li class="list-group-item bg-dark text-light">
+                            <strong>Proveedor:</strong> {{ pago.documento.proveedor.razon_social }}
+                        </li>
+                        <li class="list-group-item bg-dark text-light">
+                            <strong>Fecha:</strong> {{ pago.fecha|date:"d/m/Y" }}
+                        </li>
+                        <li class="list-group-item bg-dark text-light">
+                            <strong>Monto:</strong> ${{ pago.monto|floatformat:2 }} CLP
+                        </li>
+                        <li class="list-group-item bg-dark text-light">
+                            <strong>Estado:</strong> {{ pago.get_estado_display }}
+                        </li>
+                    </ul>
+
+                    {% if puede_eliminar %}
+                    <div class="alert alert-danger">
+                        El pago está pendiente y puede eliminarse físicamente. Esta acción no se puede deshacer.
+                    </div>
+                    {% elif puede_anular %}
+                    <div class="alert alert-warning">
+                        El pago ya está pagado. Se cambiará a <strong>Anulado</strong> y se conservará su registro.
+                    </div>
+                    {% else %}
+                    <div class="alert alert-secondary">
+                        Este pago ya está anulado y se conserva en el historial; no se puede eliminar.
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between">
+                        <a class="btn btn-outline-secondary" href="{% url 'finanzas:pagos_lista' %}">Volver a pagos</a>
+                        {% if puede_eliminar or puede_anular %}
+                        <form method="post">
+                            {% csrf_token %}
+                            <button class="btn {% if puede_eliminar %}btn-danger{% else %}btn-warning{% endif %}" type="submit">
+                                {% if puede_eliminar %}Confirmar borrado{% else %}Confirmar anulación{% endif %}
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

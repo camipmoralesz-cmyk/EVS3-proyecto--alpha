@@ -3,26 +3,33 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.catalogo.models import Articulo
 from apps.entidades.models import Proveedor
+from apps.finanzas.utils import bloquear_escrituras_finanzas
+from apps.usuarios.roles import rol_requerido
 from .forms import DocumentoEntradaForm
-from .models import DocumentoEntrada, MovimientoInventario
+from .models import DetalleDocumento, DocumentoEntrada, MovimientoInventario
 from .permisos import bodega_requerida, lectura_cardex, lectura_inventario
-from .services import registrar_documento_entrada
+from .services import (
+    calcular_descuentos_sucesivos,
+    calcular_subtotal_linea,
+    confirmar_documento_borrador,
+    registrar_documento_entrada,
+)
 
 logger = logging.getLogger(__name__)
 
 
 @login_required
 @bodega_requerida
+@bloquear_escrituras_finanzas
 def registro_documento(request):
     """
     Registro de un documento de entrada (factura, boleta, guía, nota de crédito) con múltiples
@@ -126,6 +133,24 @@ def detalle_documento(request, pk):
 
 
 @lectura_inventario
+
+@rol_requerido('bodega')
+@require_POST
+def confirmar_borrador(request, pk):
+    try:
+        documento = confirmar_documento_borrador(pk, request.user)
+    except DocumentoEntrada.DoesNotExist as error:
+        raise Http404 from error
+    except ValidationError as error:
+        messages.error(request, 'No se pudo confirmar el borrador: ' + '; '.join(error.messages))
+    else:
+        messages.success(
+            request,
+            f'{documento.get_tipo_documento_display()} N° {documento.numero_documento} confirmado. El inventario fue actualizado.',
+        )
+    return redirect('detalle_documento', pk=pk)
+
+
 def inventario_stock(request):
     """Inventario / stock en tiempo real con alertas de stock crítico y mínimo."""
     articulos = Articulo.objects.select_related('categoria').filter(activo=True).order_by('nombre')

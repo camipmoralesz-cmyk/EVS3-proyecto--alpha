@@ -5,8 +5,10 @@ from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 
+from apps.catalogo.models import Articulo, Categoria
 from apps.entidades.models import ContactoEntidad, CuentaBancaria, Proveedor
-from apps.inventario.models import DocumentoEntrada
+from apps.finanzas.models import ObservacionFactura, PagoProveedor, SaldoInicialEmpresa
+from apps.inventario.models import DetalleDocumento, DocumentoEntrada
 from apps.obras.models import Obra
 
 User = get_user_model()
@@ -60,6 +62,61 @@ class FinanzasAccesoRolTests(BaseFinanzasTestCase):
         self.assertContains(respuesta, 'Panel de Finanzas')
         self.assertContains(respuesta, f'href="{reverse("finanzas:panel")}"')
 
+    def test_personal_finanzas_solo_ve_finanzas_y_compras_en_sidebar(self):
+        self.client.force_login(self.user_finanzas)
+        respuesta = self.client.get(reverse('finanzas:panel'))
+        menu = respuesta.content.decode().split(
+            '<!-- Menú de Módulos según requerimientos FYAG -->',
+            1,
+        )[1].split('</ul>', 1)[0]
+
+        self.assertIn(f'href="{reverse("finanzas:panel")}"', menu)
+        self.assertIn(f'href="{reverse("lista_documentos")}"', menu)
+        for opcion in (
+            'Dashboard',
+            'Catálogo de Artículos',
+            'Despachos a Obras',
+            'Kardex Inalterable',
+            'Proveedores y Clientes',
+            'Usuarios y Roles',
+            'Auditoría',
+        ):
+            self.assertNotIn(opcion, menu)
+
+    def test_finanzas_no_puede_abrir_vistas_que_registran_documentos_o_articulos(self):
+        self.client.force_login(self.user_finanzas)
+        total_documentos = DocumentoEntrada.objects.count()
+        total_articulos = Articulo.objects.count()
+
+        for metodo in ('get', 'post'):
+            with self.subTest(vista='registro_documento', metodo=metodo):
+                respuesta = getattr(self.client, metodo)(
+                    reverse('registro_documento'),
+                    {},
+                )
+                self.assertEqual(respuesta.status_code, 403)
+            with self.subTest(vista='crear_articulo', metodo=metodo):
+                respuesta = getattr(self.client, metodo)(
+                    reverse('crear_articulo'),
+                    {},
+                )
+                self.assertEqual(respuesta.status_code, 403)
+
+        self.assertEqual(DocumentoEntrada.objects.count(), total_documentos)
+        self.assertEqual(Articulo.objects.count(), total_articulos)
+
+    def test_bodega_conserva_acceso_actual_a_ingresos_y_articulos(self):
+        self.client.force_login(self.user_bodega)
+
+        self.assertEqual(
+            self.client.get(reverse('registro_documento')).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.get(reverse('crear_articulo')).status_code,
+            200,
+        )
+
     def test_otro_rol_no_ve_enlace_finanzas_en_sidebar(self):
         self.client.force_login(self.user_bodega)
         respuesta = self.client.get(reverse('lista_entidades'))
@@ -70,6 +127,14 @@ class FinanzasAccesoRolTests(BaseFinanzasTestCase):
         self.client.force_login(self.superuser)
         respuesta = self.client.get(reverse('finanzas:panel'))
         self.assertEqual(respuesta.status_code, 200)
+        menu = respuesta.content.decode().split(
+            '<!-- Menú de Módulos según requerimientos FYAG -->',
+            1,
+        )[1].split('</ul>', 1)[0]
+        self.assertIn(f'href="{reverse("finanzas:panel")}"', menu)
+        self.assertIn(f'href="{reverse("lista_documentos")}"', menu)
+        self.assertNotIn('Dashboard', menu)
+        self.assertNotIn('Catálogo de Artículos', menu)
 
 
 class FinanzasEntidadesTests(BaseFinanzasTestCase):
@@ -236,6 +301,32 @@ class FinanzasPresupuestosTests(BaseFinanzasTestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Cámara de Frío San Carlos')
         self.assertContains(r, 'Agroexportadora Ñuble S.A.')
+        self.assertContains(r, reverse('finanzas:obra_crear'))
+
+    def test_crear_obra_con_mandante_y_presupuesto_inicial(self):
+        url = reverse('finanzas:obra_crear')
+        respuesta = self.client.post(url, {
+            'nombre': 'Bodega de prueba',
+            'mandante': self.mandante.pk,
+            'presupuesto_total': '7500000.00',
+            'estado': Obra.Estado.ACTIVA,
+        })
+
+        self.assertRedirects(respuesta, reverse('finanzas:presupuestos_lista'))
+        obra = Obra.objects.get(nombre='Bodega de prueba')
+        self.assertEqual(obra.mandante, self.mandante)
+        self.assertEqual(obra.presupuesto_total, Decimal('7500000.00'))
+
+    def test_no_crear_obra_con_presupuesto_negativo(self):
+        respuesta = self.client.post(reverse('finanzas:obra_crear'), {
+            'nombre': 'Obra con presupuesto inválido',
+            'mandante': self.mandante.pk,
+            'presupuesto_total': '-1.00',
+            'estado': Obra.Estado.ACTIVA,
+        })
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertFalse(Obra.objects.filter(nombre='Obra con presupuesto inválido').exists())
 
     def test_editar_presupuesto_total_valido(self):
         url = reverse('finanzas:presupuesto_editar', args=[self.obra.pk])
@@ -252,7 +343,15 @@ class FinanzasPresupuestosTests(BaseFinanzasTestCase):
         self.obra.refresh_from_db()
         self.assertEqual(self.obra.presupuesto_total, Decimal('15000000.00'))
 
-    def test_borrar_presupuesto_en_obra_activa_lo_deja_en_cero(self):
+    def test_editar_presupuesto_no_permite_vaciarlo_fuera_de_la_accion_eliminar(self):
+        url = reverse('finanzas:presupuesto_editar', args=[self.obra.pk])
+        respuesta = self.client.post(url, data={'presupuesto_total': ''})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.obra.refresh_from_db()
+        self.assertEqual(self.obra.presupuesto_total, Decimal('15000000.00'))
+
+    def test_borrar_presupuesto_en_obra_activa_lo_elimina_y_conserva_obra(self):
         url = reverse('finanzas:presupuesto_eliminar', args=[self.obra.pk])
         r_get = self.client.get(url)
         self.assertEqual(r_get.status_code, 200)
@@ -261,8 +360,10 @@ class FinanzasPresupuestosTests(BaseFinanzasTestCase):
         r_post = self.client.post(url)
         self.assertRedirects(r_post, reverse('finanzas:presupuestos_lista'))
         self.obra.refresh_from_db()
-        self.assertEqual(self.obra.presupuesto_total, Decimal('0.00'))
+        self.assertIsNone(self.obra.presupuesto_total)
         self.assertTrue(Obra.objects.filter(pk=self.obra.pk).exists())
+        respuesta_lista = self.client.get(reverse('finanzas:presupuestos_lista'))
+        self.assertContains(respuesta_lista, 'Sin presupuesto')
 
     def test_no_permite_borrar_presupuesto_en_obra_cerrada(self):
         self.obra.estado = Obra.Estado.CERRADA
@@ -276,3 +377,560 @@ class FinanzasPresupuestosTests(BaseFinanzasTestCase):
         self.assertRedirects(r_post, reverse('finanzas:presupuestos_lista'))
         self.obra.refresh_from_db()
         self.assertEqual(self.obra.presupuesto_total, Decimal('15000000.00'))
+
+
+class FinanzasFacturasTests(BaseFinanzasTestCase):
+    """Pruebas de consulta y valorización de facturas en Finanzas (Etapa 4)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        proveedor = Proveedor.objects.create(
+            rut='76.543.210-3',
+            razon_social='Proveedor de Prueba SpA',
+        )
+        cls.proveedor = proveedor
+        categoria = Categoria.objects.create(nombre='Materiales de prueba')
+        articulo = Articulo.objects.create(
+            codigo_interno='FIN-001',
+            nombre='Perfil de acero',
+            categoria=categoria,
+            ubicacion_bodega='Bodega central',
+            pmp_costo_actual=1250,
+        )
+        cls.articulo = articulo
+        cls.documento = DocumentoEntrada.objects.create(
+            proveedor=proveedor,
+            numero_documento='F-1001',
+            fecha_emision=date(2026, 11, 1),
+            registrado_por=cls.user_finanzas,
+            monto_neto=2500,
+        )
+        DetalleDocumento.objects.create(
+            documento=cls.documento,
+            articulo=articulo,
+            cantidad=Decimal('2.00'),
+            precio_unitario_base=1300,
+            precio_unitario_final=1250,
+            subtotal_linea=2500,
+        )
+
+    def test_finanzas_lista_documentos_y_puede_buscar(self):
+        self.client.force_login(self.user_finanzas)
+
+        respuesta = self.client.get(reverse('finanzas:facturas_lista'), {'q': 'F-1001'})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'F-1001')
+        self.assertContains(respuesta, '$2500 CLP')
+        self.assertContains(respuesta, reverse('finanzas:factura_detalle', args=[self.documento.pk]))
+
+    def test_finanzas_ve_desglose_subtotal_neto_y_pmp_sin_acciones_de_edicion(self):
+        self.client.force_login(self.user_finanzas)
+        url = reverse('finanzas:factura_detalle', args=[self.documento.pk])
+
+        respuesta = self.client.get(url)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Subtotal línea')
+        self.assertContains(respuesta, '$2500 CLP')
+        self.assertContains(respuesta, '$1250 CLP')
+        self.assertNotContains(respuesta, 'Editar')
+        self.assertNotContains(respuesta, 'Borrar')
+
+    def test_finanzas_reporta_factura_a_gerencia_sin_modificarla(self):
+        self.client.force_login(self.user_finanzas)
+        url = reverse('finanzas:factura_detalle', args=[self.documento.pk])
+
+        respuesta = self.client.post(url, {
+            'texto': 'Revisar el monto neto de este documento.',
+            'numero_documento': 'F-9999',
+            'monto_neto': '1',
+            'tipo_documento': DocumentoEntrada.TIPO_BOLETA,
+        })
+
+        self.assertRedirects(respuesta, url)
+        observacion = ObservacionFactura.objects.get(documento=self.documento)
+        self.assertEqual(observacion.usuario, self.user_finanzas)
+        self.assertEqual(observacion.texto, 'Revisar el monto neto de este documento.')
+        self.assertEqual(observacion.estado, 'PENDIENTE')
+        self.documento.refresh_from_db()
+        self.assertEqual(self.documento.numero_documento, 'F-1001')
+        self.assertEqual(self.documento.monto_neto, 2500)
+        self.assertEqual(self.documento.tipo_documento, DocumentoEntrada.TIPO_FACTURA)
+
+    def test_no_guarda_un_reporte_sin_texto(self):
+        self.client.force_login(self.user_finanzas)
+        url = reverse('finanzas:factura_detalle', args=[self.documento.pk])
+
+        respuesta = self.client.post(url, {'texto': '   '})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(ObservacionFactura.objects.filter(documento=self.documento).count(), 0)
+        self.assertContains(respuesta, 'Reportar a Gerencia')
+
+    def test_otro_rol_no_puede_consultar_facturas_de_finanzas(self):
+        self.client.force_login(self.user_bodega)
+
+        respuesta = self.client.get(reverse('finanzas:facturas_lista'))
+        detalle = self.client.get(
+            reverse('finanzas:factura_detalle', args=[self.documento.pk]),
+        )
+        reporte = self.client.post(
+            reverse('finanzas:factura_detalle', args=[self.documento.pk]),
+            {'texto': 'Reporte sin autorización.'},
+        )
+
+        self.assertEqual(respuesta.status_code, 403)
+        self.assertEqual(detalle.status_code, 403)
+        self.assertEqual(reporte.status_code, 403)
+        self.assertFalse(ObservacionFactura.objects.filter(documento=self.documento).exists())
+
+    def _crear_borrador(self):
+        documento = DocumentoEntrada.objects.create(
+            proveedor=self.proveedor,
+            numero_documento='BORRADOR-200',
+            fecha_emision=date(2026, 11, 1),
+            estado=DocumentoEntrada.ESTADO_BORRADOR,
+        )
+        DetalleDocumento.objects.create(
+            documento=documento,
+            articulo=self.articulo,
+            cantidad=Decimal('2.00'),
+            precio_unitario_base=1300,
+            precio_unitario_final=1250,
+            subtotal_linea=2500,
+        )
+        return documento
+
+    def test_finanzas_crea_y_edita_borrador_sin_modificar_inventario(self):
+        self.client.force_login(self.user_finanzas)
+        url = reverse('finanzas:factura_crear')
+        formulario_creacion = self.client.get(url)
+        self.assertEqual(formulario_creacion.status_code, 200)
+        self.assertContains(formulario_creacion, 'Guardar borrador')
+        datos = {
+            'proveedor': self.proveedor.pk,
+            'tipo_documento': DocumentoEntrada.TIPO_FACTURA,
+            'numero_documento': 'BORRADOR-201',
+            'fecha_emision': '2026-11-02',
+            'observaciones': 'Pendiente de recepción física',
+            'lineas': [{
+                'articulo_id': self.articulo.pk,
+                'cantidad': '2',
+                'precio_unitario_base': 1500,
+                'descuento_1_porcentaje': 0,
+                'descuento_2_porcentaje': 0,
+                'descuento_3_porcentaje': 0,
+            }],
+        }
+        datos_otro_documento = {**datos, 'numero_documento': 'BOLETA-201'}
+        datos_otro_documento['tipo_documento'] = DocumentoEntrada.TIPO_BOLETA
+        respuesta_tipo_invalido = self.client.post(
+            url,
+            datos_otro_documento,
+            content_type='application/json',
+        )
+        self.assertEqual(respuesta_tipo_invalido.status_code, 400)
+        self.assertFalse(
+            DocumentoEntrada.objects.filter(numero_documento='BOLETA-201').exists(),
+        )
+
+        respuesta = self.client.post(url, datos, content_type='application/json')
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json()['status'], 'ok')
+        borrador = DocumentoEntrada.objects.get(numero_documento='BORRADOR-201')
+        self.assertEqual(borrador.estado, DocumentoEntrada.ESTADO_BORRADOR)
+        self.assertEqual(borrador.monto_neto, 3000)
+        self.assertEqual(borrador.detalles.count(), 1)
+        self.articulo.refresh_from_db()
+        self.assertEqual(self.articulo.stock_actual, Decimal('0.00'))
+        self.assertFalse(borrador.movimientos_generados.exists())
+
+        formulario_edicion = self.client.get(
+            reverse('finanzas:factura_editar', args=[borrador.pk]),
+        )
+        self.assertEqual(formulario_edicion.status_code, 200)
+        self.assertContains(formulario_edicion, 'Editar borrador')
+
+        datos['numero_documento'] = 'BORRADOR-201-EDITADO'
+        respuesta_edicion = self.client.post(
+            reverse('finanzas:factura_editar', args=[borrador.pk]),
+            datos,
+            content_type='application/json',
+        )
+
+        self.assertEqual(respuesta_edicion.status_code, 200)
+        borrador.refresh_from_db()
+        self.assertEqual(borrador.numero_documento, 'BORRADOR-201-EDITADO')
+
+    def test_finanzas_no_edita_confirmada_y_bodega_confirma_borrador_una_vez(self):
+        borrador = self._crear_borrador()
+        self.client.force_login(self.user_finanzas)
+
+        self.assertEqual(
+            self.client.get(
+                reverse('finanzas:factura_editar', args=[self.documento.pk]),
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse('confirmar_borrador', args=[borrador.pk]),
+            ).status_code,
+            403,
+        )
+
+        self.client.force_login(self.user_bodega)
+        url = reverse('confirmar_borrador', args=[borrador.pk])
+        detalle_bodega = self.client.get(
+            reverse('detalle_documento', args=[borrador.pk]),
+        )
+        self.assertEqual(detalle_bodega.status_code, 200)
+        self.assertContains(detalle_bodega, 'Confirmar ingreso a inventario')
+        primera_confirmacion = self.client.post(url)
+        segunda_confirmacion = self.client.post(url)
+
+        self.assertEqual(primera_confirmacion.status_code, 302)
+        self.assertEqual(segunda_confirmacion.status_code, 302)
+        borrador.refresh_from_db()
+        self.articulo.refresh_from_db()
+        self.assertEqual(borrador.estado, DocumentoEntrada.ESTADO_CONFIRMADO)
+        self.assertEqual(self.articulo.stock_actual, Decimal('2.00'))
+        self.assertEqual(borrador.movimientos_generados.count(), 1)
+
+    def test_finanzas_elimina_borrador_sin_registros_asociados(self):
+        borrador = self._crear_borrador()
+        self.client.force_login(self.user_finanzas)
+
+        respuesta = self.client.post(
+            reverse('finanzas:factura_eliminar', args=[borrador.pk]),
+        )
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertFalse(DocumentoEntrada.objects.filter(pk=borrador.pk).exists())
+
+
+class FinanzasPagosTests(BaseFinanzasTestCase):
+    def setUp(self):
+        self.client.force_login(self.user_finanzas)
+        proveedor = Proveedor.objects.create(
+            rut='76.543.210-3',
+            razon_social='Proveedor para pagos SpA',
+        )
+        self.documento = DocumentoEntrada.objects.create(
+            proveedor=proveedor,
+            numero_documento='PAGO-1001',
+            fecha_emision=date(2026, 11, 17),
+            monto_neto=30000,
+        )
+
+    def _payload(self, **overrides):
+        datos = {
+            'documento': self.documento.pk,
+            'fecha': '2026-11-17',
+            'monto': '12000.00',
+            'medio_pago': PagoProveedor.MedioPago.TRANSFERENCIA,
+            'estado': PagoProveedor.Estado.PAGADO,
+        }
+        datos.update(overrides)
+        return datos
+
+    def test_crear_y_listar_pago(self):
+        respuesta = self.client.post(
+            reverse('finanzas:pago_crear'),
+            self._payload(),
+        )
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        pago = PagoProveedor.objects.get(documento=self.documento)
+        self.assertEqual(pago.usuario, self.user_finanzas)
+        self.assertEqual(pago.monto, Decimal('12000.00'))
+
+        listado = self.client.get(reverse('finanzas:pagos_lista'))
+        self.assertEqual(listado.status_code, 200)
+        self.assertContains(listado, 'PAGO-1001')
+        self.assertContains(listado, '$12000')
+
+    def test_editar_pago_y_conservar_usuario_que_lo_registro(self):
+        pago = PagoProveedor.objects.create(
+            documento=self.documento,
+            fecha=date(2026, 11, 16),
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.EFECTIVO,
+            estado=PagoProveedor.Estado.PENDIENTE,
+            usuario=self.user_bodega,
+        )
+
+        respuesta = self.client.post(
+            reverse('finanzas:pago_editar', args=[pago.pk]),
+            self._payload(monto='15000.00'),
+        )
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        pago.refresh_from_db()
+        self.assertEqual(pago.monto, Decimal('15000.00'))
+        self.assertEqual(pago.usuario, self.user_bodega)
+
+    def test_borrar_pago_pendiente_con_pantalla_de_confirmacion(self):
+        pago = PagoProveedor.objects.create(
+            documento=self.documento,
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PENDIENTE,
+            usuario=self.user_finanzas,
+        )
+        url = reverse('finanzas:pago_eliminar', args=[pago.pk])
+
+        confirmacion = self.client.get(url)
+        self.assertEqual(confirmacion.status_code, 200)
+        self.assertContains(confirmacion, 'puede eliminarse físicamente')
+        respuesta = self.client.post(url)
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        self.assertFalse(PagoProveedor.objects.filter(pk=pago.pk).exists())
+
+    def test_anular_pago_pagado_conserva_el_registro_y_restaura_saldo(self):
+        pago = PagoProveedor.objects.create(
+            documento=self.documento,
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PAGADO,
+            usuario=self.user_finanzas,
+        )
+        url = reverse('finanzas:pago_eliminar', args=[pago.pk])
+
+        confirmacion = self.client.get(url)
+        self.assertEqual(confirmacion.status_code, 200)
+        self.assertContains(confirmacion, 'se conservará su registro')
+        respuesta = self.client.post(url)
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        pago.refresh_from_db()
+        self.assertEqual(pago.estado, PagoProveedor.Estado.ANULADO)
+        panel = self.client.get(reverse('finanzas:panel'))
+        self.assertEqual(panel.context['pagos_efectuados'], Decimal('0.00'))
+        self.assertEqual(panel.context['saldo_disponible'], Decimal('30000.00'))
+
+    def test_pago_anulado_no_se_elimina(self):
+        pago = PagoProveedor.objects.create(
+            documento=self.documento,
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.ANULADO,
+            usuario=self.user_finanzas,
+        )
+        url = reverse('finanzas:pago_eliminar', args=[pago.pk])
+
+        confirmacion = self.client.get(url)
+        self.assertEqual(confirmacion.status_code, 200)
+        self.assertContains(confirmacion, 'se conserva en el historial')
+        respuesta = self.client.post(url)
+
+        self.assertRedirects(respuesta, reverse('finanzas:pagos_lista'))
+        self.assertTrue(PagoProveedor.objects.filter(pk=pago.pk).exists())
+
+    def test_rechazar_pago_mayor_al_neto_del_documento(self):
+        respuesta = self.client.post(
+            reverse('finanzas:pago_crear'),
+            self._payload(monto='30000.01'),
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'El monto supera el saldo disponible')
+        self.assertFalse(PagoProveedor.objects.filter(documento=self.documento).exists())
+
+    def test_no_permitir_que_pagos_activos_acumulados_superen_el_neto(self):
+        PagoProveedor.objects.create(
+            documento=self.documento,
+            fecha=date(2026, 11, 16),
+            monto=Decimal('25000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PAGADO,
+            usuario=self.user_finanzas,
+        )
+
+        respuesta = self.client.post(
+            reverse('finanzas:pago_crear'),
+            self._payload(monto='5001.00'),
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'El monto supera el saldo disponible')
+        self.assertEqual(PagoProveedor.objects.filter(documento=self.documento).count(), 1)
+
+    def test_usuario_de_bodega_no_puede_ver_ni_crear_pagos(self):
+        self.client.force_login(self.user_bodega)
+
+        listado = self.client.get(reverse('finanzas:pagos_lista'))
+        crear = self.client.get(reverse('finanzas:pago_crear'))
+        crear_post = self.client.post(
+            reverse('finanzas:pago_crear'),
+            self._payload(),
+        )
+
+        self.assertEqual(listado.status_code, 403)
+        self.assertEqual(crear.status_code, 403)
+        self.assertEqual(crear_post.status_code, 403)
+        self.assertFalse(PagoProveedor.objects.filter(documento=self.documento).exists())
+
+
+class FinanzasSaldoPanelTests(BaseFinanzasTestCase):
+    def setUp(self):
+        self.client.force_login(self.user_finanzas)
+        self.proveedor = Proveedor.objects.create(
+            rut='76.543.210-3',
+            razon_social='Proveedor para saldo SpA',
+        )
+
+    def _crear_documento(self, numero, monto):
+        return DocumentoEntrada.objects.create(
+            proveedor=self.proveedor,
+            tipo_documento=DocumentoEntrada.TIPO_FACTURA,
+            numero_documento=numero,
+            fecha_emision=date(2026, 11, 17),
+            monto_neto=monto,
+            estado=DocumentoEntrada.ESTADO_CONFIRMADO,
+        )
+
+    def test_solo_pago_pagado_disminuye_el_saldo_inicial(self):
+        self.assertEqual(SaldoInicialEmpresa.objects.get(pk=1).monto, Decimal('30000.00'))
+        documento = self._crear_documento('SALDO-1001', 10000)
+
+        url = reverse('finanzas:panel')
+        respuesta = self.client.get(url)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Saldo disponible para compras')
+        self.assertEqual(respuesta.context['saldo_disponible'], Decimal('30000.00'))
+
+        pago = PagoProveedor.objects.create(
+            documento=documento,
+            fecha=date(2026, 11, 17),
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PENDIENTE,
+            usuario=self.user_finanzas,
+        )
+        pendiente = self.client.get(url)
+        self.assertEqual(pendiente.context['saldo_disponible'], Decimal('30000.00'))
+
+        pago.estado = PagoProveedor.Estado.PAGADO
+        pago.save(update_fields=['estado'])
+        pagado = self.client.get(url)
+        self.assertEqual(pagado.context['pagos_efectuados'], Decimal('10000.00'))
+        self.assertEqual(pagado.context['saldo_disponible'], Decimal('20000.00'))
+
+    def test_pago_anulado_no_se_descuenta_del_saldo(self):
+        documento = self._crear_documento('SALDO-ANULADO', 10000)
+        PagoProveedor.objects.create(
+            documento=documento,
+            fecha=date(2026, 11, 17),
+            monto=Decimal('10000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.ANULADO,
+            usuario=self.user_finanzas,
+        )
+
+        respuesta = self.client.get(reverse('finanzas:panel'))
+
+        self.assertEqual(respuesta.context['pagos_efectuados'], Decimal('0.00'))
+        self.assertEqual(respuesta.context['saldo_disponible'], Decimal('30000.00'))
+
+    def test_panel_muestra_contadores_reales_de_facturas_pagos_y_presupuestos(self):
+        factura = self._crear_documento('PANEL-FACT-1', 10000)
+        DocumentoEntrada.objects.create(
+            proveedor=self.proveedor,
+            tipo_documento=DocumentoEntrada.TIPO_BOLETA,
+            numero_documento='PANEL-BOL-1',
+            fecha_emision=date(2026, 11, 17),
+            monto_neto=5000,
+        )
+        PagoProveedor.objects.create(
+            documento=factura,
+            fecha=date(2026, 11, 17),
+            monto=Decimal('5000.00'),
+            medio_pago=PagoProveedor.MedioPago.TRANSFERENCIA,
+            estado=PagoProveedor.Estado.PENDIENTE,
+            usuario=self.user_finanzas,
+        )
+        mandante = Proveedor.objects.create(
+            rut='77.987.654-3',
+            razon_social='Mandante para panel S.A.',
+            tipo=Proveedor.Tipo.MANDANTE,
+        )
+        Obra.objects.create(
+            nombre='Obra para panel',
+            mandante=mandante,
+            presupuesto_total=Decimal('1250000.00'),
+        )
+
+        respuesta = self.client.get(reverse('finanzas:panel'))
+
+        self.assertEqual(respuesta.context['facturas_count'], 1)
+        self.assertEqual(respuesta.context['pagos_pendientes_count'], 1)
+        self.assertEqual(respuesta.context['presupuestos_total'], Decimal('1250000.00'))
+        self.assertContains(respuesta, 'Facturas registradas')
+        self.assertContains(respuesta, 'Pagos pendientes')
+        self.assertContains(respuesta, 'Presupuestos totales')
+
+
+class FinanzasCuentaMaskingTests(BaseFinanzasTestCase):
+    def setUp(self):
+        self.entidad = Proveedor.objects.create(
+            rut='76.543.210-3',
+            razon_social='Proveedor con cuenta de prueba SpA',
+        )
+        self.cuenta = CuentaBancaria.objects.create(
+            entidad=self.entidad,
+            banco='Banco de Prueba',
+            tipo_cuenta=CuentaBancaria.TipoCuenta.CORRIENTE,
+            numero_cuenta='0012345678',
+        )
+        self.url = reverse('editar_entidad', args=[self.entidad.pk])
+
+    def test_bodega_solo_ve_la_cuenta_enmascarada_y_no_puede_sobrescribirla(self):
+        self.client.force_login(self.user_bodega)
+        respuesta = self.client.get(self.url)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, '****5678')
+        self.assertNotContains(respuesta, '0012345678')
+
+        respuesta_post = self.client.post(self.url, {
+            'rut': self.entidad.rut,
+            'razon_social': 'Proveedor actualizado SpA',
+            'nombre_fantasia': '',
+            'giro': '',
+            'tipo': Proveedor.Tipo.PROVEEDOR,
+            'telefono': '',
+            'email': '',
+            'direccion': '',
+            'contactos-TOTAL_FORMS': '0',
+            'contactos-INITIAL_FORMS': '0',
+            'contactos-MIN_NUM_FORMS': '0',
+            'contactos-MAX_NUM_FORMS': '1000',
+            'cuentas-TOTAL_FORMS': '1',
+            'cuentas-INITIAL_FORMS': '1',
+            'cuentas-MIN_NUM_FORMS': '0',
+            'cuentas-MAX_NUM_FORMS': '1000',
+            'cuentas-0-id': str(self.cuenta.pk),
+            'cuentas-0-entidad': str(self.entidad.pk),
+            'cuentas-0-banco': 'Banco de Prueba',
+            'cuentas-0-tipo_cuenta': CuentaBancaria.TipoCuenta.CORRIENTE,
+            'cuentas-0-numero_cuenta': '99999999',
+            'cuentas-0-email_pago': '',
+        })
+
+        self.assertRedirects(respuesta_post, reverse('lista_entidades'))
+        self.cuenta.refresh_from_db()
+        self.assertEqual(self.cuenta.numero_cuenta, '0012345678')
+
+    def test_finanzas_y_superusuario_ven_el_numero_completo(self):
+        for usuario in (self.user_finanzas, self.superuser):
+            with self.subTest(usuario=usuario.username):
+                self.client.force_login(usuario)
+                respuesta = self.client.get(self.url)
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertContains(respuesta, '0012345678')

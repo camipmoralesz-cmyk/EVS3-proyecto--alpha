@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}FYAG | {{ titulo }}{% endblock %}
+{% block header_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% include "finanzas/_nav.html" %}
+
+    <div class="card border-secondary bg-dark bg-opacity-50 shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                <div>
+                    <h1 class="h3 text-info mb-1"><i class="bi bi-receipt me-2"></i>{{ titulo }}</h1>
+                    <p class="text-secondary mb-0">Gestiona borradores y consulta la valorización de documentos confirmados.</p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a class="btn btn-success" href="{% url 'finanzas:factura_crear' %}">
+                        <i class="bi bi-plus-circle me-1"></i> Nuevo borrador
+                    </a>
+                    <form method="get" class="d-flex gap-2" role="search">
+                        <label class="visually-hidden" for="buscar-documento">Buscar documento</label>
+                        <input id="buscar-documento" class="form-control" type="search" name="q" value="{{ q }}"
+                               placeholder="N° documento, proveedor o RUT">
+                        <button class="btn btn-outline-info" type="submit">Buscar</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Documento</th>
+                            <th>Proveedor</th>
+                            <th>Fecha de emisión</th>
+                            <th>Estado</th>
+                            <th class="text-end">Monto neto</th>
+                            <th class="text-end">Detalle</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for documento in documentos %}
+                        <tr>
+                            <td>{{ documento.get_tipo_documento_display }} N° {{ documento.numero_documento }}</td>
+                            <td>{{ documento.proveedor.razon_social }}</td>
+                            <td>{{ documento.fecha_emision|date:"d/m/Y" }}</td>
+                            <td>
+                                <span class="badge {% if documento.estado == 'CONFIRMADO' %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {{ documento.get_estado_display }}
+                                </span>
+                            </td>
+                            <td class="text-end">${{ documento.monto_neto }} CLP</td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-info" href="{% url 'finanzas:factura_detalle' documento.pk %}">
+                                    <i class="bi bi-eye me-1"></i> Ver
+                                </a>
+                                {% if documento.estado == 'BORRADOR' %}
+                                <a class="btn btn-sm btn-outline-warning" href="{% url 'finanzas:factura_editar' documento.pk %}">
+                                    <i class="bi bi-pencil me-1"></i> Editar
+                                </a>
+                                <a class="btn btn-sm btn-outline-danger" href="{% url 'finanzas:factura_eliminar' documento.pk %}">
+                                    <i class="bi bi-trash me-1"></i> Eliminar
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-secondary py-4">No hay documentos ingresados.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

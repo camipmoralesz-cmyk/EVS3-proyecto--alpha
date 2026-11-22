@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.usuarios.roles import rol_requerido
+from apps.finanzas.utils import bloquear_escrituras_finanzas
 from .forms import ArticuloForm
 from .models import Articulo
 
@@ -26,6 +27,8 @@ def lista_articulos(request):
 
 def _guardar(request, instancia=None):
     form = ArticuloForm(request.POST or None, instance=instancia)
+@bloquear_escrituras_finanzas
+def crear_articulo(request):
     if request.method == 'POST':
         if form.is_valid():
             art = form.save()

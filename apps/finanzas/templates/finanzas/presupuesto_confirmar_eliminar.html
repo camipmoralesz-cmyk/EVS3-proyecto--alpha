@@ -16,7 +16,7 @@
             </div>
             <div class="card-body p-4">
                 <p class="mb-3">
-                    Estás por dejar en <strong>$0.00</strong> el presupuesto asignado a la siguiente obra (la obra en sí no se elimina):
+                    Estás por quitar el presupuesto asignado a esta obra. La obra y sus datos se conservarán:
                 </p>
 
                 <ul class="list-group list-group-flush mb-4 border border-secondary rounded">
@@ -39,7 +39,7 @@
                     <div class="alert alert-warning">
                         <i class="bi bi-info-circle-fill me-1"></i>
                         Esta obra está activa y <strong>no tiene movimientos de inventario asociados</strong>.
-                        Al confirmar, su <code>presupuesto_total</code> quedará en <strong>$0.00</strong>.
+                        Al confirmar, la obra quedará sin presupuesto asignado.
                     </div>
                     <form method="post" class="d-flex justify-content-between align-items-center mt-4">
                         {% csrf_token %}
@@ -47,13 +47,13 @@
                             <i class="bi bi-arrow-left me-1"></i> Cancelar
                         </a>
                         <button type="submit" class="btn btn-danger fw-bold">
-                            <i class="bi bi-trash-fill me-1"></i> Confirmar borrado de presupuesto
+                            <i class="bi bi-trash-fill me-1"></i> Eliminar presupuesto
                         </button>
                     </form>
                 {% else %}
                     <div class="alert alert-danger">
                         <i class="bi bi-shield-lock-fill me-1"></i>
-                        <strong>No se puede borrar este presupuesto:</strong> la obra está cerrada, ya tiene movimientos asociados o su presupuesto ya es $0.
+                        <strong>No se puede borrar este presupuesto:</strong>                         la obra está cerrada, ya tiene movimientos asociados o no tiene un presupuesto asignado.
                     </div>
                     <div class="d-flex justify-content-end mt-4">
                         <a href="{% url 'finanzas:presupuestos_lista' %}" class="btn btn-outline-secondary">

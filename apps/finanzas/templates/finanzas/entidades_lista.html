@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finanzas_tags %}
 
 {% block title %}FYAG | Proveedores y Mandantes{% endblock %}
 {% block header_title %}{{ titulo }}{% endblock %}
@@ -101,7 +102,7 @@
                                 <div class="small">
                                     <i class="bi bi-bank me-1 text-info"></i>
                                     <strong>{{ cuenta.banco }}</strong> ({{ cuenta.get_tipo_cuenta_display }}):
-                                    <span class="font-monospace">{{ cuenta.numero_cuenta }}</span>
+                                    <span class="font-monospace">{{ cuenta.numero_cuenta|cuenta_visible:request.user }}</span>
                                 </div>
                             {% empty %}
                                 <span class="text-secondary small">Sin cuentas</span>

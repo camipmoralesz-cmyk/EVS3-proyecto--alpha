@@ -6,6 +6,8 @@ from apps.catalogo.models import Articulo
 from apps.entidades.models import Proveedor
 
 class DocumentoEntrada(models.Model):
+    objects = models.Manager()
+
     TIPO_FACTURA = 'FACTURA'
     TIPO_BOLETA = 'BOLETA'
     TIPO_GUIA = 'GUIA_DESPACHO'
@@ -20,8 +22,10 @@ class DocumentoEntrada(models.Model):
 
     ESTADO_CONFIRMADO = 'CONFIRMADO'
     ESTADO_ANULADO = 'ANULADO'
+    ESTADO_BORRADOR = 'BORRADOR'
 
     ESTADOS = [
+        (ESTADO_BORRADOR, 'Borrador'),
         (ESTADO_CONFIRMADO, 'Confirmado'),
         (ESTADO_ANULADO, 'Anulado'),
     ]

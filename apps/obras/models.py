@@ -6,6 +6,7 @@ from apps.entidades.models import Proveedor
 
 
 class Obra(models.Model):
+    objects = models.Manager()
 
     class Estado(models.TextChoices):
         ACTIVA = 'ACTIVA', 'Activa'
@@ -32,6 +33,8 @@ class Obra(models.Model):
         max_digits=14,
         decimal_places=2,
         default=0,
+        null=True,
+        blank=True,
         verbose_name="Presupuesto total"
     )
 
@@ -66,14 +69,14 @@ class Obra(models.Model):
                     'mandante': 'El mandante seleccionado debe estar activo.'
                 })
 
-            if self.presupuesto_total < 0:
+            if self.presupuesto_total is not None and self.presupuesto_total < 0:
                 raise ValidationError({
                     'presupuesto_total': 'El presupuesto no puede ser negativo.'
                 })
 
-        # REGLA DE NEGOCIO: No se puede cambiar el estado a CERRADA si hay solicitudes pendientes
-                if self.pk and self.estado == self.Estado.CERRADA:
-                    solicitudes_pendientes = self.solicitudes_materiales.filter(estado='PENDIENTE').exists()
+            # REGLA DE NEGOCIO: No se puede cambiar el estado a CERRADA si hay solicitudes pendientes
+            if self.pk and self.estado == self.Estado.CERRADA:
+                solicitudes_pendientes = self.solicitudes_materiales.filter(estado='PENDIENTE').exists()
                 if solicitudes_pendientes:
                     raise ValidationError({
                         'estado': 'No se puede cerrar la obra porque existen solicitudes de materiales pendientes de despacho por Bodega.'
@@ -96,30 +99,30 @@ class SolicitudMaterialObra(models.Model):
         related_name='solicitudes_materiales',
         verbose_name="Obra"
     )
-    
+
     articulo = models.ForeignKey(
         Articulo,
         on_delete=models.PROTECT,
         verbose_name="Artículo / Insumo"
     )
-    
+
     cantidad = models.PositiveIntegerField(
         verbose_name="Cantidad solicitada"
     )
-    
+
     estado = models.CharField(
         max_length=20,
         choices=EstadoSolicitud.choices,
         default=EstadoSolicitud.PENDIENTE,
         verbose_name="Estado de solicitud"
     )
-    
+
     solicitado_por = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
         verbose_name="Supervisor solicitante"
     )
-    
+
     fecha_solicitud = models.DateTimeField(
         auto_now_add=True
     )
@@ -128,7 +131,6 @@ class SolicitudMaterialObra(models.Model):
         verbose_name = "Solicitud de Material"
         verbose_name_plural = "Solicitudes de Materiales"
         ordering = ['-fecha_solicitud']
-
     def __str__(self):
         return f"Solicitud #{id or 'Nueva'} - {self.articulo.nombre} ({self.cantidad} un.)"
 

@@ -5,6 +5,8 @@ from django.conf import settings
 from django.utils import timezone
 
 class MovimientoCardex(models.Model):
+    objects = models.Manager()
+
     TIPO_MOVIMIENTO_CHOICES = [
         ('INGRESO', 'Ingreso por Compra/Factura'),
         ('EGRESO', 'Egreso a Obra'),

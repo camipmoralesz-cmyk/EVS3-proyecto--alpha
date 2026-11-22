@@ -5,6 +5,16 @@
         </a>
     </li>
     <li class="nav-item">
+        <a class="nav-link {% if 'factura' in request.resolver_match.url_name %}active{% else %}text-light{% endif %}" href="{% url 'finanzas:facturas_lista' %}">
+            <i class="bi bi-receipt me-1"></i> Facturas
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if 'pago' in request.resolver_match.url_name %}active{% else %}text-light{% endif %}" href="{% url 'finanzas:pagos_lista' %}">
+            <i class="bi bi-cash-coin me-1"></i> Pagos
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {% if 'entidad' in request.resolver_match.url_name %}active{% else %}text-light{% endif %}" href="{% url 'finanzas:entidades_lista' %}">
             <i class="bi bi-building me-1"></i> Proveedores y Mandantes
         </a>

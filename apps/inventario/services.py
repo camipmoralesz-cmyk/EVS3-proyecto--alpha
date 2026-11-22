@@ -149,6 +149,62 @@ def registrar_movimiento(articulo_id, tipo, cantidad, usuario, referencia, costo
 # ---------------------------------------------------------------------------
 # INGRESO DE DOCUMENTOS TRIBUTARIOS (HU-01)
 # ---------------------------------------------------------------------------
+def _aplicar_detalle_en_inventario(documento, detalle, articulo, usuario):
+    cantidad = detalle.cantidad
+    precio_final = detalle.precio_unitario_final
+    stock_anterior = articulo.stock_actual
+    es_nota_credito = documento.tipo_documento == DocumentoEntrada.TIPO_NOTA_CREDITO
+
+    if es_nota_credito:
+        if stock_anterior < cantidad:
+            raise ValidationError(
+                f"Stock insuficiente para aplicar Nota de Crédito en '{articulo.nombre}'. "
+                f"Stock actual: {stock_anterior}, requerido: {cantidad}"
+            )
+        nuevo_stock = stock_anterior - cantidad
+        tipo_movimiento = MovimientoInventario.TIPO_SALIDA
+        referencia = (
+            f"Nota de Crédito N° {documento.numero_documento} - "
+            f"{documento.proveedor.razon_social}"
+        )
+    else:
+        nuevo_stock = stock_anterior + cantidad
+        tipo_movimiento = MovimientoInventario.TIPO_ENTRADA
+        referencia = (
+            f"{documento.get_tipo_documento_display()} N° "
+            f"{documento.numero_documento} - {documento.proveedor.razon_social}"
+        )
+        articulo.ultimo_costo_compra = precio_final
+        if nuevo_stock > 0:
+            costo_anterior_total = (
+                Decimal(str(stock_anterior))
+                * Decimal(str(articulo.pmp_costo_actual))
+            )
+            costo_nuevo_total = cantidad * Decimal(str(precio_final))
+            pmp_calculado = (
+                costo_anterior_total + costo_nuevo_total
+            ) / Decimal(str(nuevo_stock))
+            articulo.pmp_costo_actual = int(
+                pmp_calculado.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+            )
+        else:
+            articulo.pmp_costo_actual = precio_final
+
+    articulo.stock_actual = nuevo_stock
+    articulo.save()
+    MovimientoInventario.objects.create(
+        articulo=articulo,
+        documento=documento,
+        tipo_movimiento=tipo_movimiento,
+        cantidad=cantidad,
+        stock_anterior=stock_anterior,
+        stock_posterior=nuevo_stock,
+        costo_unitario=precio_final,
+        usuario=usuario,
+        referencia=referencia,
+    )
+
+
 @transaction.atomic
 def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
     """
@@ -207,6 +263,7 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
     es_nc = documento.es_nota_credito
     glosa = f"{documento.get_tipo_documento_display()} N° {numero} - {proveedor.razon_social}"
     total = 0
+    total_neto_acumulado = 0
 
     for linea in lineas_detalle:
         articulo_id = linea['articulo_id']
@@ -240,8 +297,11 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
         DetalleDocumento.objects.create(
             documento=documento, articulo_id=articulo_id, cantidad=cantidad,
             precio_unitario_base=precio_base,
-            descuento_1_porcentaje=d1, descuento_2_porcentaje=d2, descuento_3_porcentaje=d3,
-            precio_unitario_final=precio_final, subtotal_linea=subtotal,
+            descuento_1_porcentaje=d1,
+            descuento_2_porcentaje=d2, 
+            descuento_3_porcentaje=d3,
+            precio_unitario_final=precio_final, 
+            subtotal_linea=subtotal,
         )
 
         if es_nc:
@@ -276,8 +336,33 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
             stock_posterior=nuevo_stock,
             costo_unitario=precio_final,
             usuario=usuario,
-            referencia=glosa
-        )
+            referencia=glosa)
+# 3. Bloquear y actualizar el artículo vía punto único de escritura al Kardex
+        articulo = Articulo.objects.select_for_update().get(pk=articulo_id)
+        if es_nc:
+            registrar_movimiento(
+                articulo_id,
+                M.TIPO_SALIDA,
+                cantidad,
+                usuario,
+                glosa,
+                costo=precio_final,
+                documento=documento,
+                proveedor=documento.proveedor,
+                actualizar_costos=False,
+            )
+        else:
+            registrar_movimiento(
+                articulo_id,
+                M.TIPO_ENTRADA,
+                cantidad,
+                usuario,
+                glosa,
+                costo=precio_final,
+                documento=documento,
+                proveedor=documento.proveedor,
+                actualizar_costos=True,
+            )
 
     # Actualizar monto total en el documento
     documento.monto_neto = total_neto_acumulado
@@ -519,3 +604,23 @@ def cerrar_sesion_inventario(sesion_id, usuario, observaciones=''):
     sesion.valor_diferencia_total = total_valor
     sesion.save()
     return sesion
+@transaction.atomic
+def confirmar_documento_borrador(documento_id, usuario):
+    documento = DocumentoEntrada.objects.select_for_update().get(pk=documento_id)
+    if documento.estado != DocumentoEntrada.ESTADO_BORRADOR:
+        raise ValidationError('Solo se pueden confirmar documentos en borrador.')
+
+    detalles = list(documento.detalles.all())
+    if not detalles:
+        raise ValidationError('El borrador debe tener al menos una línea.')
+    if documento.movimientos_generados.exists():
+        raise ValidationError('El borrador ya tiene movimientos de inventario asociados.')
+
+    for detalle in detalles:
+        articulo = Articulo.objects.select_for_update().get(pk=detalle.articulo_id)
+        _aplicar_detalle_en_inventario(documento, detalle, articulo, usuario)
+
+    documento.estado = DocumentoEntrada.ESTADO_CONFIRMADO
+    documento.save(update_fields=['estado'])
+    return documento
+
