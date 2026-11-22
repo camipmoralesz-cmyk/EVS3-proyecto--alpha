@@ -9,7 +9,8 @@ from django.apps import apps
 from django.utils import timezone
 
 from apps.catalogo.models import Articulo
-from apps.inventario.models import MovimientoInventario
+from apps.inventario.models import DocumentoEntrada, MovimientoInventario, SolicitudDespacho
+from apps.obras.models import Obra
 
 # Mantiene compatibilidad retornando directamente el modelo Kardex de inventario
 def obtener_modelo_kardex():
@@ -17,37 +18,56 @@ def obtener_modelo_kardex():
 
 ROLES_SISTEMA = [
     ('Administrador General', 'Administrador General / Gerencia'),
-    ('Administrativo Finanzas', 'Administrador / Finanzas'),
-    ('Bodega Logistica', 'Administrador de Bodega / Logística'),
-    ('Supervisor de Obra', 'Supervisor de Obra'),
-    ('Auditor', 'Auditor (Consultas)'),
+    ('Administración', 'Administración / Finanzas'),
+    ('Bodega / Logística', 'Bodega / Logística'),
+    ('Supervisor de Obras', 'Supervisor de Obras'),
+    ('Técnico', 'Técnico en Terreno'),
+    ('Consulta', 'Consulta / Auditoría (Solo Lectura)'),
 ]
 
 @login_required
 def dashboard(request):
-    articulos = Articulo.objects.all()
+    hoy = timezone.localdate()
+    articulos = Articulo.objects.filter(activo=True)
     total_articulos = articulos.count()
-    
+
     # Artículos con stock actual <= stock mínimo (HU-11)
-    articulos_criticos = articulos.filter(stock_actual__lte=F('stock_minimo'))
+    articulos_criticos = articulos.filter(stock_actual__lte=F('stock_minimo')).order_by('stock_actual')
     alertas_stock = articulos_criticos.count()
-    
+
     ultimos_movimientos = (
         MovimientoInventario.objects
         .select_related('articulo', 'usuario', 'documento')
         .order_by('-fecha', '-id')[:8]
     )
     movimientos_hoy = MovimientoInventario.objects.filter(
-        fecha__date=timezone.localdate()
+        fecha__date=hoy
+    ).count()
+
+    obras_activas = Obra.objects.filter(estado=Obra.Estado.ACTIVA).count()
+    solicitudes_pendientes = SolicitudDespacho.objects.filter(
+        estado=SolicitudDespacho.Estado.PENDIENTE
+    ).count()
+    facturas_borrador = DocumentoEntrada.objects.filter(
+        estado=DocumentoEntrada.ESTADO_BORRADOR
+    ).count()
+    mermas_mes = MovimientoInventario.objects.filter(
+        tipo_movimiento=MovimientoInventario.TIPO_MERMA,
+        fecha__year=hoy.year,
+        fecha__month=hoy.month,
     ).count()
 
     context = {
         'total_articulos': total_articulos,
         'alertas_stock': alertas_stock,
         'articulos_criticos': articulos_criticos[:5],
-        'obras_activas': 4,
+        'articulos_alerta': articulos_criticos[:6],
+        'obras_activas': obras_activas,
         'movimientos_hoy': movimientos_hoy,
         'ultimos_movimientos': ultimos_movimientos,
+        'solicitudes_pendientes': solicitudes_pendientes,
+        'facturas_borrador': facturas_borrador,
+        'mermas_mes': mermas_mes,
     }
     return render(request, 'core/dashboard.html', context)
 
@@ -120,7 +140,7 @@ def panel_alertas_stock(request):
     articulos_alerta = Articulo.objects.filter(stock_actual__lte=F('stock_minimo'))
     
     if categoria_q:
-        articulos_alerta = articulos_alerta.filter(categoria__icontains=categoria_q)
+        articulos_alerta = articulos_alerta.filter(categoria__nombre__icontains=categoria_q)
 
     return render(request, 'core/alertas_stock.html', {
         'articulos_alerta': articulos_alerta,

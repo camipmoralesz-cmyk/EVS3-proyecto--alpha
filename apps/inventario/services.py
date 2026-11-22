@@ -240,15 +240,9 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
         tipo_doc = DocumentoEntrada.TIPO_GUIA
 
     documento = DocumentoEntrada.objects.create(
-<<<<<<< HEAD
         proveedor=datos_documento['proveedor'],
         tipo_documento=tipo_doc,
         numero_documento=datos_documento['numero_documento'].strip(),
-=======
-        proveedor=proveedor,
-        tipo_documento=tipo_documento,
-        numero_documento=numero_documento,
->>>>>>> origin/ramaBenja
         fecha_emision=datos_documento['fecha_emision'],
         observaciones=datos_documento.get('observaciones', ''),
         registrado_por=usuario,
@@ -289,7 +283,6 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
     total_neto_acumulado = 0
 
     for linea in lineas_detalle:
-<<<<<<< HEAD
         articulo_id = linea['articulo_id']
         cantidad = Decimal(str(linea['cantidad']))
         precio_raw = linea.get('precio_unitario_base', linea.get('precio_unitario', 0))
@@ -306,7 +299,6 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
             raise ValidationError("El precio base de cada artículo debe ser un número entero.")
         if precio_base < 0:
             raise ValidationError("El precio base no puede ser negativo.")
-=======
         try:
             articulo_id = int(linea['articulo_id'])
             cantidad = Decimal(str(linea['cantidad']))
@@ -315,7 +307,6 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
             raise ValidationError("Cada línea debe incluir artículo, cantidad y precio base válidos.")
         if not cantidad.is_finite():
             raise ValidationError("La cantidad debe ser un número válido.")
->>>>>>> origin/ramaBenja
         d1 = Decimal(str(linea.get('descuento_1_porcentaje', 0) or 0))
         d2 = Decimal(str(linea.get('descuento_2_porcentaje', 0) or 0))
         d3 = Decimal(str(linea.get('descuento_3_porcentaje', 0) or 0))
@@ -338,12 +329,10 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
             subtotal_linea=subtotal,
         )
 
-<<<<<<< HEAD
         if es_nc:
             # La nota de crédito resta existencias y mantiene el PMP vigente.
             registrar_movimiento(articulo_id, M.TIPO_SALIDA, cantidad, usuario, glosa,
                                  costo=precio_final, documento=documento)
-=======
         # 3. Bloquear y actualizar el artículo (con select_for_update para prevenir race conditions)
         try:
             articulo = Articulo.objects.select_for_update().get(pk=articulo_id)
@@ -361,7 +350,6 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
             nuevo_stock = stock_anterior - cantidad
             tipo_mov = MovimientoInventario.TIPO_SALIDA
             glosa = f"Nota de Crédito N° {documento.numero_documento} - {documento.proveedor.razon_social}"
->>>>>>> origin/ramaBenja
         else:
             # Factura, boleta y guía suman existencias y recalculan el PMP.
             registrar_movimiento(articulo_id, M.TIPO_ENTRADA, cantidad, usuario, glosa,

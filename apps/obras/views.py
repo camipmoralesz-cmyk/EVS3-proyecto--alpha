@@ -1,7 +1,10 @@
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from apps.catalogo.models import Articulo
 from apps.usuarios.roles import rol_requerido, tiene_rol
@@ -146,19 +149,26 @@ def lista_hojas_servicio(request):
         descripcion = request.POST.get('descripcion', '').strip()
 
         obra = get_object_or_404(obras, pk=obra_id)
-        datos = {'obra': obra}
+        tecnico = request.POST.get('tecnico_responsable', '').strip() or (
+            request.user.get_full_name() or request.user.username
+        )
+        horas_raw = request.POST.get('horas_invertidas', '1').strip() or '1'
+        try:
+            horas = Decimal(horas_raw)
+            if horas <= 0:
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            horas = Decimal('1.00')
 
-        for campo_ubicacion in ('sector', 'ubicacion', 'sector_ubicacion'):
-            if hasattr(HojaServicioObra, campo_ubicacion):
-                datos[campo_ubicacion] = sector
-
-        for campo_desc in ('descripcion', 'detalle', 'observaciones', 'trabajo_realizado'):
-            if hasattr(HojaServicioObra, campo_desc):
-                datos[campo_desc] = descripcion
-
-        for campo_user in ('supervisor', 'registrado_por', 'creado_por', 'usuario'):
-            if hasattr(HojaServicioObra, campo_user):
-                datos[campo_user] = request.user
+        descripcion_final = f"[{sector}] {descripcion}" if sector else descripcion
+        datos = {
+            'obra': obra,
+            'tecnico_responsable': tecnico[:120],
+            'descripcion_trabajo': descripcion_final,
+            'horas_invertidas': horas,
+            'fecha_servicio': timezone.localdate(),
+            'registrado_por': request.user,
+        }
 
         hoja = HojaServicioObra(**datos)
         try:

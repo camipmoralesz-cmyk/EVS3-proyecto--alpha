@@ -12,7 +12,8 @@ def bloquear_escrituras_finanzas(view):
         es_personal_finanzas = (
             usuario.is_authenticated
             and not usuario.is_superuser
-            and usuario.groups.filter(name='finanzas').exists()
+            and tiene_rol(usuario, 'finanzas')
+            and not tiene_rol(usuario, 'bodega', 'gerencia')
         )
         if es_personal_finanzas:
             raise PermissionDenied

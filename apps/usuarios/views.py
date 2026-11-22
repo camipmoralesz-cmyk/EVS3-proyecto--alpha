@@ -6,56 +6,58 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.decorators.cache import never_cache
 
 from .forms import LoginForm
-from .roles import roles_de
+from .roles import ALIAS_ROLES, normalizar_rol_id, roles_de
 
 MAX_INTENTOS = 3          # fallos seguidos antes de bloquear
 BLOQUEO_SEGUNDOS = 30     # duración del bloqueo (súbelo en producción)
 VENTANA_FALLOS = 15 * 60  # los fallos se olvidan tras 15 min sin intentos
 
-GRUPOS_SUPERVISOR = ('supervisor', 'Supervisor de Obra', 'Supervisor de Obras')
-GRUPOS_BODEGA = ('bodega', 'Bodega Logistica', 'Encargado de Bodega / Logística')
-GRUPOS_FINANZAS = ('finanzas', 'Administrativo Finanzas', 'Administrador / Finanzas')
-GRUPOS_GERENCIA = ('gerencia', 'Administrador General', 'Administrador General / Gerencia')
-GRUPOS_AUDITOR = ('auditor', 'Auditor')
 
-RUTA_POR_ROL_ID = {
-    'supervisor': 'obras:lista_obras',
-    'bodega': 'inventario_stock',
-    'finanzas': 'lista_articulos',
-    'gerencia': 'core:dashboard',
-    'auditor': 'core:auditoria_kardex',
-}
+def _url_para_rol_id(rol_id):
+    """Resuelve la URL de inicio para cada perfil del Anexo C."""
+    if rol_id == 'gerencia':
+        return reverse('core:dashboard')
+    if rol_id == 'finanzas':
+        return reverse('finanzas:panel')
+    if rol_id == 'bodega':
+        return reverse('inventario_stock')
+    if rol_id == 'supervisor':
+        return reverse('obras:lista_obras')
+    if rol_id == 'tecnico':
+        return reverse('obras:lista_hojas_servicio')
+    if rol_id == 'consulta':
+        return reverse('core:consulta_lectura', kwargs={'seccion': 'catalogo'})
+    return reverse('usuarios:inicio')
 
 
 def obtener_ruta_por_rol(user, rol_seleccionado=None):
-    """Determina la ruta del panel correspondiente según el grupo/rol del usuario."""
+    """Determina la URL del panel correspondiente según el grupo/rol del usuario."""
     grupos = set(user.groups.values_list('name', flat=True))
+    rol_sel_canon = normalizar_rol_id(rol_seleccionado)
 
-    # 1. Si el usuario pertenece a un grupo específico, se filtra y va directo a su panel
-    if grupos.intersection(GRUPOS_SUPERVISOR):
-        return 'obras:lista_obras'
-    if grupos.intersection(GRUPOS_BODEGA):
-        return 'inventario_stock'
-    if grupos.intersection(GRUPOS_FINANZAS):
-        return 'lista_articulos'
-    if grupos.intersection(GRUPOS_AUDITOR):
-        return 'core:auditoria_kardex'
-    if grupos.intersection(GRUPOS_GERENCIA):
-        return 'core:dashboard'
+    # 1. Si el usuario pertenece a grupos y seleccionó explícitamente uno de los suyos al loguearse
+    if rol_sel_canon and grupos.intersection(ALIAS_ROLES.get(rol_sel_canon, ())):
+        return _url_para_rol_id(rol_sel_canon)
 
-    # 2. Si es superusuario sin grupo específico, respeta el rol elegido en login o va a Gerencia
+    # 2. En caso contrario, filtra los grupos del usuario en orden de especificidad
+    for rol_id in ('supervisor', 'bodega', 'finanzas', 'tecnico', 'consulta', 'gerencia'):
+        if grupos.intersection(ALIAS_ROLES.get(rol_id, ())):
+            return _url_para_rol_id(rol_id)
+
+    # 3. Si es superusuario sin grupo específico, respeta el rol elegido en login o va a Gerencia
     if user.is_superuser:
-        if rol_seleccionado in RUTA_POR_ROL_ID:
-            return RUTA_POR_ROL_ID[rol_seleccionado]
-        return 'core:dashboard'
+        if rol_sel_canon:
+            return _url_para_rol_id(rol_sel_canon)
+        return _url_para_rol_id('gerencia')
 
-    # 3. Respaldo si la cuenta aún no tiene grupo asignado
-    return 'usuarios:inicio'
+    # 4. Respaldo si la cuenta aún no tiene grupo asignado
+    return reverse('usuarios:inicio')
 
 
 class LoginPorRolView(LoginRequiredMixin, View):

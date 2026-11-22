@@ -107,15 +107,12 @@ def registro_documento(request):
         messages.error(request, f"Error al registrar documento: {error_msg}")
 
     form = DocumentoEntradaForm()
-<<<<<<< HEAD
-=======
     proveedores = Proveedor.objects.filter(
         activo=True,
         tipo=Proveedor.Tipo.PROVEEDOR,
     )
     articulos = Articulo.objects.all().order_by('nombre')
     
->>>>>>> origin/ramaBenja
     return render(request, 'inventario/registro_documento.html', {
         'form': form,
         'proveedores': form.fields['proveedor'].queryset,
@@ -141,8 +138,6 @@ def detalle_documento(request, pk):
     })
 
 
-@lectura_inventario
-
 @rol_requerido('bodega')
 @require_POST
 def confirmar_borrador(request, pk):
@@ -160,6 +155,7 @@ def confirmar_borrador(request, pk):
     return redirect('detalle_documento', pk=pk)
 
 
+@lectura_inventario
 def inventario_stock(request):
     """Inventario / stock en tiempo real con alertas de stock crítico y mínimo."""
     articulos = Articulo.objects.select_related('categoria').filter(activo=True).order_by('nombre')

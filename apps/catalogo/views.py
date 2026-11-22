@@ -27,8 +27,6 @@ def lista_articulos(request):
 
 def _guardar(request, instancia=None):
     form = ArticuloForm(request.POST or None, instance=instancia)
-@bloquear_escrituras_finanzas
-def crear_articulo(request):
     if request.method == 'POST':
         if form.is_valid():
             art = form.save()
@@ -41,16 +39,19 @@ def crear_articulo(request):
 
 
 @catalogo_escritura
+@bloquear_escrituras_finanzas
 def crear_articulo(request):
     return _guardar(request)
 
 
 @catalogo_escritura
+@bloquear_escrituras_finanzas
 def editar_articulo(request, pk):
     return _guardar(request, get_object_or_404(Articulo, pk=pk))
 
 
 @catalogo_escritura
+@bloquear_escrituras_finanzas
 @require_POST
 def cambiar_estado_articulo(request, pk):
     """Los artículos nunca se borran: se desactivan o reactivan."""
