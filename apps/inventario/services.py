@@ -217,15 +217,38 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
     if not lineas_detalle:
         raise ValidationError("El documento debe contener al menos una línea de detalle.")
 
+    proveedor = datos_documento['proveedor']
+    tipo_documento = datos_documento['tipo_documento']
+    numero_documento = str(datos_documento['numero_documento']).strip()
+    tipos_validos = {tipo for tipo, _ in DocumentoEntrada.TIPOS_DOCUMENTO}
+    if tipo_documento not in tipos_validos:
+        raise ValidationError("El tipo de documento seleccionado no es válido.")
+    if not numero_documento:
+        raise ValidationError("El número del documento es obligatorio.")
+    if not proveedor.activo or proveedor.tipo != proveedor.Tipo.PROVEEDOR:
+        raise ValidationError("Debe seleccionar un proveedor activo.")
+    if DocumentoEntrada.objects.filter(
+        proveedor=proveedor,
+        tipo_documento=tipo_documento,
+        numero_documento=numero_documento,
+    ).exists():
+        raise ValidationError("Ya existe un documento con ese tipo y número para este proveedor.")
+
     # 1. Crear encabezado del documento
     tipo_doc = datos_documento['tipo_documento']
     if tipo_doc == 'GUIA':
         tipo_doc = DocumentoEntrada.TIPO_GUIA
 
     documento = DocumentoEntrada.objects.create(
+<<<<<<< HEAD
         proveedor=datos_documento['proveedor'],
         tipo_documento=tipo_doc,
         numero_documento=datos_documento['numero_documento'].strip(),
+=======
+        proveedor=proveedor,
+        tipo_documento=tipo_documento,
+        numero_documento=numero_documento,
+>>>>>>> origin/ramaBenja
         fecha_emision=datos_documento['fecha_emision'],
         observaciones=datos_documento.get('observaciones', ''),
         registrado_por=usuario,
@@ -266,6 +289,7 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
     total_neto_acumulado = 0
 
     for linea in lineas_detalle:
+<<<<<<< HEAD
         articulo_id = linea['articulo_id']
         cantidad = Decimal(str(linea['cantidad']))
         precio_raw = linea.get('precio_unitario_base', linea.get('precio_unitario', 0))
@@ -282,6 +306,16 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
             raise ValidationError("El precio base de cada artículo debe ser un número entero.")
         if precio_base < 0:
             raise ValidationError("El precio base no puede ser negativo.")
+=======
+        try:
+            articulo_id = int(linea['articulo_id'])
+            cantidad = Decimal(str(linea['cantidad']))
+            precio_base = int(linea['precio_unitario_base'])
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            raise ValidationError("Cada línea debe incluir artículo, cantidad y precio base válidos.")
+        if not cantidad.is_finite():
+            raise ValidationError("La cantidad debe ser un número válido.")
+>>>>>>> origin/ramaBenja
         d1 = Decimal(str(linea.get('descuento_1_porcentaje', 0) or 0))
         d2 = Decimal(str(linea.get('descuento_2_porcentaje', 0) or 0))
         d3 = Decimal(str(linea.get('descuento_3_porcentaje', 0) or 0))
@@ -304,10 +338,30 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
             subtotal_linea=subtotal,
         )
 
+<<<<<<< HEAD
         if es_nc:
             # La nota de crédito resta existencias y mantiene el PMP vigente.
             registrar_movimiento(articulo_id, M.TIPO_SALIDA, cantidad, usuario, glosa,
                                  costo=precio_final, documento=documento)
+=======
+        # 3. Bloquear y actualizar el artículo (con select_for_update para prevenir race conditions)
+        try:
+            articulo = Articulo.objects.select_for_update().get(pk=articulo_id)
+        except Articulo.DoesNotExist:
+            raise ValidationError("Uno de los artículos seleccionados ya no existe.")
+        stock_anterior = articulo.stock_actual
+
+        if es_nota_credito:
+            # Nota de crédito descuenta stock
+            if stock_anterior < cantidad:
+                raise ValidationError(
+                    f"Stock insuficiente para aplicar Nota de Crédito en '{articulo.nombre}'. "
+                    f"Stock actual: {stock_anterior}, requerido: {cantidad}"
+                )
+            nuevo_stock = stock_anterior - cantidad
+            tipo_mov = MovimientoInventario.TIPO_SALIDA
+            glosa = f"Nota de Crédito N° {documento.numero_documento} - {documento.proveedor.razon_social}"
+>>>>>>> origin/ramaBenja
         else:
             # Factura, boleta y guía suman existencias y recalculan el PMP.
             registrar_movimiento(articulo_id, M.TIPO_ENTRADA, cantidad, usuario, glosa,

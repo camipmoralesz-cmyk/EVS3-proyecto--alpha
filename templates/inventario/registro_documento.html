@@ -54,6 +54,9 @@
                             <i class="bi bi-plus-circle me-1"></i>+ Nuevo Proveedor
                         </button>
                         {% endif %}
+                        <a href="{% url 'crear_entidad' %}" class="btn btn-link btn-sm p-0 text-decoration-none">
+                            <i class="bi bi-plus-circle me-1"></i>Crear ficha de proveedor
+                        </a>
                     </div>
                     <select name="proveedor" id="proveedor" class="form-select" required>
                         <option value="">-- Seleccionar Proveedor --</option>
