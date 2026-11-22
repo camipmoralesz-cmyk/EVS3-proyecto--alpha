@@ -12,10 +12,10 @@ from .forms import AnulacionControladaForm
 class EsAdministradorGeneralMixin(UserPassesTestMixin):
     """Restringe el acceso solo al Administrador General (RBAC según HU-12)."""
     def test_func(self):
-        return self.request.user.is_authenticated and (
-            self.request.user.is_superuser or 
-            getattr(self.request.user, 'rol', '') == 'ADMINISTRADOR_GENERAL'#
-            
+        user = self.request.user
+        return user.is_authenticated and (
+            user.is_superuser or
+            user.groups.filter(name__in=['Administrador General', 'gerencia']).exists()
         )
 
 class AnularMovimientoView(LoginRequiredMixin, EsAdministradorGeneralMixin, View):
@@ -59,7 +59,6 @@ class AnularMovimientoView(LoginRequiredMixin, EsAdministradorGeneralMixin, View
                         valor_unitario=mov_original.valor_unitario,
                         usuario=request.user,
                         obra=mov_original.obra,
-                        tecnico=mov_original.tecnico,
                         justificacion=f"ANULACIÓN de Movimiento #{mov_original.id}. Motivo: {motivo}",
                         es_reversa=True,
                         movimiento_reversado=mov_original

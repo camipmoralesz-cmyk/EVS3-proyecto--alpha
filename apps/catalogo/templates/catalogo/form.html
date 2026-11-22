@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Nuevo Artículo | FYAG Logística{% endblock %}
+{% block header_title %}Registro en Catálogo Maestro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-white mb-1">Registrar Nuevo Artículo</h1>
+            <p class="text-secondary mb-0">Ingresa los datos técnicos y parámetros de stock mínimo del insumo.</p>
+        </div>
+        <a href="{% url 'lista_articulos' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Volver al Catálogo
+        </a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21; max-width: 720px;">
+        <div class="card-body p-4">
+            <form method="post">
+                {% csrf_token %}
+                
+                {% for field in form %}
+                <div class="mb-3">
+                    <label for="{{ field.id_for_label }}" class="form-label text-light fw-semibold">
+                        {{ field.label }}
+                    </label>
+                    {{ field }}
+                    {% if field.help_text %}
+                        <div class="form-text text-secondary">{{ field.help_text }}</div>
+                    {% endif %}
+                    {% for error in field.errors %}
+                        <div class="text-danger small mt-1">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <a href="{% url 'lista_articulos' %}" class="btn btn-outline-light">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1"></i> Guardar Artículo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Agrega automáticamente clases de Bootstrap 5 a los inputs del form de Django
+    document.querySelectorAll('form input, form select, form textarea').forEach(el => {
+        if (el.type === 'checkbox') {
+            el.classList.add('form-check-input');
+        } else if (el.tagName === 'SELECT') {
+            el.classList.add('form-select');
+        } else if (el.type !== 'hidden') {
+            el.classList.add('form-control');
+        }
+    });
+</script>
+{% endblock %}

@@ -7,6 +7,7 @@ app_name = 'usuarios'
 
 urlpatterns = [
     path('login/', views.login_view, name='login'),
+    path('redirigir/', views.LoginPorRolView.as_view(), name='login_por_rol'),
     path('logout/', LogoutView.as_view(), name='logout'),  # solo acepta POST
     path('inicio/', views.inicio, name='inicio'),
 ]

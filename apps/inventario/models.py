@@ -6,6 +6,8 @@ from apps.catalogo.models import Articulo
 from apps.entidades.models import Proveedor
 
 class DocumentoEntrada(models.Model):
+    objects = models.Manager()
+
     TIPO_FACTURA = 'FACTURA'
     TIPO_BOLETA = 'BOLETA'
     TIPO_GUIA = 'GUIA_DESPACHO'
@@ -20,8 +22,10 @@ class DocumentoEntrada(models.Model):
 
     ESTADO_CONFIRMADO = 'CONFIRMADO'
     ESTADO_ANULADO = 'ANULADO'
+    ESTADO_BORRADOR = 'BORRADOR'
 
     ESTADOS = [
+        (ESTADO_BORRADOR, 'Borrador'),
         (ESTADO_CONFIRMADO, 'Confirmado'),
         (ESTADO_ANULADO, 'Anulado'),
     ]
@@ -79,6 +83,12 @@ class DocumentoEntrada(models.Model):
         ordering = ['-fecha_registro']
         indexes = [
             models.Index(fields=['proveedor', 'tipo_documento', 'numero_documento']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['proveedor', 'tipo_documento', 'numero_documento'],
+                name='uniq_documento_proveedor_tipo_numero',
+            ),
         ]
 
     def __str__(self):
@@ -168,6 +178,11 @@ class MovimientoInventario(models.Model):
     Las correcciones las hace Gerencia con un contra-asiento (HU-12), nunca editando."""
 
     TIPO_ENTRADA = 'ENTRADA'
+    TIPO_SALIDA = 'SALIDA'
+    TIPO_AJUSTE = 'AJUSTE'
+    TIPO_ANULACION = 'ANULACION'
+    TIPO_INGRESO_SISTEMA = 'INGRESO_SISTEMA'
+    TIPO_SALIDA_SISTEMA = 'SALIDA_SISTEMA'
     TIPO_SALIDA = 'SALIDA'                      # Salida por Nota de Crédito
     TIPO_AJUSTE = 'AJUSTE'                      # histórico (ya no se genera)
     TIPO_EGRESO_OBRA = 'EGRESO_OBRA'
@@ -179,9 +194,12 @@ class MovimientoInventario(models.Model):
     TIPO_AJUSTE_NEG = 'AJUSTE_NEG'              # regularización inventario físico (-)
 
     TIPOS_MOVIMIENTO = [
-        (TIPO_ENTRADA, 'Entrada de Mercadería'),
-        (TIPO_SALIDA, 'Salida / Ajuste Nota de Crédito'),
+        (TIPO_ENTRADA, 'Ingreso de Materiales'),
+        (TIPO_SALIDA, 'Salida de Materiales'),
         (TIPO_AJUSTE, 'Ajuste de Inventario'),
+        (TIPO_ANULACION, 'Contra-Asiento / Anulación'),
+        (TIPO_INGRESO_SISTEMA, 'Ingreso de Personal al Sistema'),
+        (TIPO_SALIDA_SISTEMA, 'Salida de Personal del Sistema'),
         (TIPO_EGRESO_OBRA, 'Egreso a Obra'),
         (TIPO_MERMA, 'Merma'),
         (TIPO_DEVOLUCION_OBRA, 'Devolución desde Obra'),
@@ -194,6 +212,8 @@ class MovimientoInventario(models.Model):
     articulo = models.ForeignKey(
         Articulo,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name='movimientos_inventario',
         verbose_name="Artículo"
     )
@@ -213,19 +233,23 @@ class MovimientoInventario(models.Model):
     cantidad = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        default=Decimal('0.00'),
         verbose_name="Cantidad"
     )
     stock_anterior = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        default=Decimal('0.00'),
         verbose_name="Stock Anterior"
     )
     stock_posterior = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        default=Decimal('0.00'),
         verbose_name="Stock Posterior"
     )
     costo_unitario = models.IntegerField(
+        default=0,
         verbose_name="Costo Unitario Aplicado"
     )
     fecha = models.DateTimeField(
@@ -242,7 +266,7 @@ class MovimientoInventario(models.Model):
     referencia = models.CharField(
         max_length=255,
         blank=True,
-        verbose_name="Referencia / Glosa"
+        verbose_name="Referencia / Motivo"
     )
     # --- Trazabilidad de los movimientos de bodega ---
     obra = models.ForeignKey(
@@ -291,6 +315,9 @@ class MovimientoInventario(models.Model):
         return int(self.cantidad * self.costo_unitario)
 
     def __str__(self):
+        ref_art = self.articulo.codigo_interno if self.articulo else 'SISTEMA'
+        fecha_txt = self.fecha.strftime('%Y-%m-%d %H:%M') if self.fecha else ''
+        return f"[{self.tipo_movimiento}] {ref_art} ({self.cantidad}) - {fecha_txt}"
         return f"[{self.tipo_movimiento}] {self.articulo.codigo_interno} ({self.cantidad}) - {self.fecha.strftime('%Y-%m-%d %H:%M')}"
 
 

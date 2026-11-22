@@ -208,6 +208,14 @@ class EntidadesViewsTests(TestCase):
         self.assertEqual(Proveedor.objects.count(), 1)
 
     def test_editar_ficha_existente_con_formsets(self):
+        grupo_finanzas, _ = Group.objects.get_or_create(name='finanzas')
+        usuario_finanzas = get_user_model().objects.create_user(
+            username='usuario_finanzas',
+            password='test-password',
+        )
+        usuario_finanzas.groups.add(grupo_finanzas)
+        self.client.force_login(usuario_finanzas)
+
         ficha = Proveedor.objects.create(
             rut='76.543.210-3',
             razon_social='Nombre Antiguo SpA',
@@ -217,7 +225,7 @@ class EntidadesViewsTests(TestCase):
         contacto = ContactoEntidad.objects.create(
             entidad=ficha,
             nombre='Contacto Original',
-            cargo=ContactoEntidad.Cargo.TECNICO,
+            cargo=ContactoEntidad.Cargo,
             email='original@empresa.cl',
         )
         cuenta = CuentaBancaria.objects.create(

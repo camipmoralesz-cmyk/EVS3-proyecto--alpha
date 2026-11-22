@@ -1,0 +1,64 @@
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Detalle de la obra</h2>
+            <p class="text-muted mb-0">
+                Información general de la obra registrada.
+            </p>
+        </div>
+
+        <a href="{% url 'obras:lista_obras' %}"
+           class="btn btn-secondary">
+            Volver
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h4 class="mb-0">{{ obra.nombre }}</h4>
+        </div>
+
+        <div class="card-body">
+
+            <p>
+                <strong>Nombre:</strong>
+                {{ obra.nombre }}
+            </p>
+
+            <p>
+                <strong>Mandante:</strong>
+                {{ obra.mandante }}
+            </p>
+
+            <p>
+                <strong>Presupuesto total:</strong>
+                ${{ obra.presupuesto_total|floatformat:0 }}
+            </p>
+
+            <p>
+                <strong>Estado:</strong>
+                {{ obra.get_estado_display }}
+            </p>
+
+            <p>
+                <strong>Fecha de creación:</strong>
+                {{ obra.fecha_creacion|date:"d/m/Y H:i" }}
+            </p>
+
+            {% if puede_administrar %}
+                <a href="{% url 'obras:editar_obra' obra.pk %}"
+                   class="btn btn-primary">
+                    Editar obra
+                </a>
+            {% endif %}
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.usuarios.roles import rol_requerido
+from apps.finanzas.utils import bloquear_escrituras_finanzas
 from .forms import ArticuloForm
 from .models import Articulo
 
@@ -38,16 +39,19 @@ def _guardar(request, instancia=None):
 
 
 @catalogo_escritura
+@bloquear_escrituras_finanzas
 def crear_articulo(request):
     return _guardar(request)
 
 
 @catalogo_escritura
+@bloquear_escrituras_finanzas
 def editar_articulo(request, pk):
     return _guardar(request, get_object_or_404(Articulo, pk=pk))
 
 
 @catalogo_escritura
+@bloquear_escrituras_finanzas
 @require_POST
 def cambiar_estado_articulo(request, pk):
     """Los artículos nunca se borran: se desactivan o reactivan."""

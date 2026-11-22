@@ -19,9 +19,10 @@ validar_numero_cuenta = RegexValidator(
 class Proveedor(models.Model):
     """
     Ficha de una entidad externa: proveedor o empresa mandante (cliente).
-    Se mantiene el nombre "Proveedor" (de HU-01) porque inventario depende de él;
+    Se mantiene el nombre "Proveedor" porque inventario depende de él;
     el campo "tipo" indica si la ficha es de un proveedor o de un mandante (HU-07).
     """
+    objects = models.Manager()
 
     class Tipo(models.TextChoices):
         PROVEEDOR = 'PROVEEDOR', 'Proveedor'
@@ -69,7 +70,6 @@ class ContactoEntidad(models.Model):
 
     class Cargo(models.TextChoices):
         COMERCIAL = 'COMERCIAL', 'Ejecutivo comercial'
-        TECNICO = 'TECNICO', 'Encargado técnico'
         FINANZAS = 'FINANZAS', 'Contacto de finanzas'
         OTRO = 'OTRO', 'Otro'
 

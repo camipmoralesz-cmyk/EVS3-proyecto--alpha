@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}FYAG | {{ titulo }}{% endblock %}
+{% block header_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+{% include "finanzas/_nav.html" %}
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold text-light mb-0">
+            <i class="bi bi-calculator text-info me-2"></i> Presupuestos de Obras
+        </h3>
+        <p class="text-secondary small mb-0">
+            Crea obras y administra el presupuesto total asignado a cada faena.
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="badge bg-info bg-opacity-10 border border-info text-info fs-6 px-3 py-2">
+            <i class="bi bi-cash-stack me-1"></i>
+            Presupuesto Total Acumulado: <strong>${{ total_presupuestos|floatformat:2 }}</strong>
+        </div>
+        <a href="{% url 'finanzas:obra_crear' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Crear obra y presupuesto
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card border-secondary bg-dark bg-opacity-50 mb-3">
+    <div class="card-body py-3">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label for="id_q" class="form-label small fw-semibold mb-1">Buscar por nombre de obra o cliente mandante</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" id="id_q" value="{{ q }}" class="form-control" placeholder="Ej: Planta Frigorífica, Agroexportadora...">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label for="id_estado" class="form-label small fw-semibold mb-1">Estado de la obra</label>
+                <select name="estado" id="id_estado" class="form-select form-select-sm">
+                    <option value="">Todos los estados</option>
+                    {% for valor, etiqueta in estados %}
+                        <option value="{{ valor }}" {% if estado_seleccionado == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                    <i class="bi bi-funnel me-1"></i> Filtrar
+                </button>
+                {% if q or estado_seleccionado %}
+                    <a href="{% url 'finanzas:presupuestos_lista' %}" class="btn btn-outline-secondary btn-sm">
+                        Limpiar
+                    </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabla de obras y presupuestos -->
+<div class="card border-secondary bg-dark bg-opacity-50">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead class="small text-uppercase text-secondary">
+                    <tr>
+                        <th>Obra / Faena</th>
+                        <th>Cliente Mandante</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-end">Presupuesto Total (CLP)</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for obra in obras %}
+                    <tr>
+                        <td class="fw-semibold">{{ obra.nombre }}</td>
+                        <td>
+                            <div>{{ obra.mandante.razon_social }}</div>
+                            <div class="small font-monospace text-info">{{ obra.mandante.rut_formateado }}</div>
+                        </td>
+                        <td class="text-center">
+                            {% if obra.estado == 'ACTIVA' %}
+                                <span class="badge bg-success">Activa</span>
+                            {% elif obra.estado == 'CERRADA' %}
+                                <span class="badge bg-danger">Cerrada</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactiva</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold font-monospace text-info">
+                            {% if obra.tiene_presupuesto %}
+                                ${{ obra.presupuesto_total|floatformat:2 }}
+                            {% else %}
+                                <span class="text-secondary">Sin presupuesto</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1">
+                                <a href="{% url 'finanzas:presupuesto_editar' obra.pk %}" class="btn btn-outline-info btn-sm">
+                                    <i class="bi bi-pencil-square me-1"></i> Editar Presupuesto
+                                </a>
+                                {% if obra.puede_borrar_presupuesto %}
+                                    <a href="{% url 'finanzas:presupuesto_eliminar' obra.pk %}" class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash me-1"></i> Borrar
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-secondary">
+                            No hay obras registradas en el sistema.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

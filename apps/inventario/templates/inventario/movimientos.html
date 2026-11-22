@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Kardex Inalterable | FYAG Logística{% endblock %}
+{% block header_title %}Kardex Histórico de Movimientos{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-white mb-1">Kardex Inalterable de Bodega</h1>
+            <p class="text-secondary mb-0">Trazabilidad auditada de ingresos, egresos a obras, mermas y devoluciones.</p>
+        </div>
+        <a href="{% url 'inventario_stock' %}" class="btn btn-outline-info">
+            <i class="bi bi-boxes me-1"></i> Ver Stock Actual
+        </a>
+    </div>
+
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="text-secondary small">
+                            <th>ID</th>
+                            <th>Fecha / Hora</th>
+                            <th>Personal / Responsable</th>
+                            <th>Producto / Recurso</th>
+                            <th>Operación</th>
+                            <th>Cantidad</th>
+                            <th>Motivo / Ref.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in movimientos %}
+                        <tr>
+                            <td><code>#{{ mov.id }}</code></td>
+                            <td class="small text-secondary">{{ mov.fecha|date:"d/m/Y H:i" }}</td>
+                            <td class="fw-semibold text-info">
+                                {% if mov.usuario %}
+                                    {{ mov.usuario.get_full_name|default:mov.usuario.username }}
+                                    <div class="small text-secondary">@{{ mov.usuario.username }}</div>
+                                {% else %}
+                                    Sistema
+                                {% endif %}
+                            </td>
+                            <td class="fw-semibold text-white">
+                                {% if mov.articulo %}
+                                    {{ mov.articulo }}
+                                {% else %}
+                                    <span class="text-info"><i class="bi bi-door-open me-1"></i>Control de Acceso al Sistema</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge bg-primary">{{ mov.get_tipo_movimiento_display }}</span></td>
+                            <td class="fw-bold">{% if mov.articulo %}{{ mov.cantidad }}{% else %}<span class="text-secondary">—</span>{% endif %}</td>
+                            <td class="small">{{ mov.referencia|default:mov.documento|default:"-" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-secondary py-4">
+                                <i class="bi bi-journal-check fs-3 d-block mb-2"></i>
+                                Aún no existen movimientos registrados en el Kardex.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

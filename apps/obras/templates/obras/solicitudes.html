@@ -1,0 +1,102 @@
+{% extends 'obras/base_obras.html' %}
+
+{% block title %}Solicitudes de Materiales | FYAG{% endblock %}
+{% block header_title %}Solicitudes de Materiales a Bodega (Terreno){% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario de Nueva Solicitud -->
+    <div class="card border-secondary border-opacity-25 mb-4" style="background-color: #1a1d21;">
+        <div class="card-header text-info fw-bold">
+            <i class="bi bi-plus-circle me-1"></i> NUEVA SOLICITUD DE MATERIALES (NO DESCUENTA STOCK DIRECTAMENTE)
+        </div>
+        <div class="card-body">
+            <form method="post" class="row g-3">
+                {% csrf_token %}
+                <div class="col-md-4">
+                    <label class="form-label text-secondary small text-uppercase">Obra Asignada</label>
+                    <select name="obra" class="form-select bg-dark text-light border-secondary" required>
+                        <option value="">Seleccione obra...</option>
+                        {% for ob in obras %}
+                            <option value="{{ ob.id }}">{{ ob.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label text-secondary small text-uppercase">Insumo / Material</label>
+                    <select name="articulo" class="form-select bg-dark text-light border-secondary" required>
+                        <option value="">Seleccione material...</option>
+                        {% for art in articulos %}
+                            <option value="{{ art.id }}">{{ art }} (Disp: {{ art.stock_actual }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label text-secondary small text-uppercase">Cantidad</label>
+                    <input type="number" name="cantidad" min="1" step="1" class="form-control bg-dark text-light border-secondary" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label text-secondary small text-uppercase">Sector / Ubicación</label>
+                    <input type="text" name="sector" placeholder="Ej: Sala Máquinas" class="form-control bg-dark text-light border-secondary">
+                </div>
+                <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-primary fw-semibold">
+                        <i class="bi bi-send me-1"></i> Enviar Solicitud a Bodega
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de Solicitudes -->
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+        <div class="card-header text-white fw-bold d-flex justify-content-between align-items-center">
+            <span>HISTORIAL DE SOLICITUDES DE MIS OBRAS</span>
+            <span class="badge bg-dark border border-info text-info">{{ solicitudes.count }} Registros</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="text-secondary small text-uppercase">
+                            <th>ID</th>
+                            <th>Obra</th>
+                            <th>Material Solicitado</th>
+                            <th class="text-center">Cantidad</th>
+                            <th class="text-center">Estado Bodega</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sol in solicitudes %}
+                        <tr>
+                            <td><code>#{{ sol.id }}</code></td>
+                            <td class="fw-semibold text-white">{{ sol.obra.nombre }}</td>
+                            <td>{{ sol.articulo }}</td>
+                            <td class="text-center fw-bold text-info">{{ sol.cantidad }}</td>
+                            <td class="text-center">
+                                <span class="badge {% if sol.estado == 'DESPACHADA' or sol.estado == 'COMPLETADA' %}bg-primary{% else %}bg-warning text-dark{% endif %}">
+                                    {{ sol.get_estado_display|default:sol.estado }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-secondary py-4">No has registrado solicitudes de materiales aún.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

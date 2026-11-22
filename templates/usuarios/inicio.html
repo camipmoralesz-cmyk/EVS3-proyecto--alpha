@@ -1,39 +1,57 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Inicio · Proyecto Alpha</title>
-  <style>
-    body{margin:0;background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif;padding:1.5rem}
-    .barra{max-width:60rem;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;background:#1e293b;border:1px solid #334155;border-radius:1rem;padding:1.25rem}
-    h1{margin:0;font-size:1.25rem}
-    p{margin:.25rem 0 0;color:#94a3b8;font-size:.85rem}
-    strong{color:#67e8f9}
-    button{background:#334155;color:#cbd5e1;border:0;border-radius:.6rem;padding:.6rem 1rem;font-weight:600;cursor:pointer}
-    button:hover{background:#475569}
-    ul{max-width:60rem;margin:1rem auto;padding:0;list-style:none;display:grid;gap:.75rem}
-    li{background:#1e293b;border:1px solid #334155;border-radius:.75rem;padding:1rem}
-    li small{color:#94a3b8;display:block;margin-top:.25rem}
-  </style>
-</head>
-<body>
-  <div class="barra">
-    <div>
-      <h1>Hola, {{ user.get_full_name|default:user.username }}</h1>
-      <p>{{ user.email }}</p>
+{% extends 'base.html' %}
+
+{% block title %}Mi Cuenta | FYAG{% endblock %}
+{% block header_title %}Perfil de Usuario y Roles Asignados{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="card card-custom mb-4">
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <h1 class="h4 fw-bold text-white mb-1">Hola, {{ user.get_full_name|default:user.username }}</h1>
+                <p class="text-secondary small mb-0">
+                    @{{ user.username }}{% if user.email %} · {{ user.email }}{% endif %}
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'usuarios:login_por_rol' %}" class="btn btn-primary btn-sm fw-semibold">
+                    <i class="bi bi-arrow-right-circle me-1"></i> Ir a mi Panel Principal
+                </a>
+                <form method="post" action="{% url 'usuarios:logout' %}" class="m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
-    <form method="post" action="{% url 'usuarios:logout' %}">
-      {% csrf_token %}
-      <button type="submit">Cerrar sesión</button>
-    </form>
-  </div>
-  <ul>
-    {% for r in roles_usuario %}
-      <li><strong>{{ r.name }}</strong> · {{ r.badge }}<small>{{ r.description }}</small></li>
-    {% empty %}
-      <li>Tu cuenta aún no tiene un rol asignado. Pide a un administrador que te agregue a un grupo.</li>
-    {% endfor %}
-  </ul>
-</body>
-</html>
+
+    <div class="card card-custom">
+        <div class="card-header text-info fw-bold">
+            <i class="bi bi-shield-check me-2"></i>Roles y Perfiles Asignados (Anexo C)
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for r in roles_usuario %}
+                <div class="col-md-6">
+                    <div class="p-3 rounded bg-dark bg-opacity-50 border border-secondary border-opacity-25 h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="text-white">{{ r.name }}</strong>
+                            <span class="badge bg-info text-dark">{{ r.badge }}</span>
+                        </div>
+                        <p class="small text-secondary mb-0">{{ r.description }}</p>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-warning mb-0">
+                        Tu cuenta aún no tiene un rol asignado. Solicita al Administrador General que te asigne un perfil en <strong>Usuarios y Roles</strong>.
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

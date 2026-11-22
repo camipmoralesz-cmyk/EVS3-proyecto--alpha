@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}HU-01: Ingreso de Materiales por Documento{% endblock %}
+{% block title %}{% if titulo %}{{ titulo }}{% else %}Ingreso de Materiales por Documento{% endif %}{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -9,12 +9,17 @@
             <div>
                 <h3 class="fw-bold text-white mb-0">
                     <i class="bi bi-file-earmark-arrow-down-fill text-primary me-2"></i>
-                    Ingreso de Materiales por Documento
+                    {% if titulo %}{{ titulo }}{% else %}Ingreso de Materiales por Documento{% endif %}
                 </h3>
                 <p class="text-muted small mb-0">
-                    Historia de Usuario <strong>HU-01</strong> — Rol: <em>Encargado de Bodega y Logística</em>
+                    {% if modo_finanzas %}
+                    Finanzas prepara el borrador; no se actualizará el inventario.
+                    {% else %}
+                    Rol: <em>Encargado de Bodega y Logística</em>
+                    {% endif %}
                 </p>
             </div>
+            {% if not modo_finanzas %}
             <div>
                 <a href="{% url 'inventario_stock' %}" class="btn btn-outline-secondary btn-sm me-1">
                     <i class="bi bi-boxes me-1"></i> Ver Stock Actual
@@ -23,6 +28,7 @@
                     <i class="bi bi-list-check me-1"></i> Historial de Documentos
                 </a>
             </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -43,14 +49,19 @@
                 <div class="col-md-4">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label for="proveedor" class="form-label fw-bold mb-0">Proveedor *</label>
+                        {% if not modo_finanzas %}
                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-bs-toggle="modal" data-bs-target="#modalNuevoProveedor">
                             <i class="bi bi-plus-circle me-1"></i>+ Nuevo Proveedor
                         </button>
+                        {% endif %}
+                        <a href="{% url 'crear_entidad' %}" class="btn btn-link btn-sm p-0 text-decoration-none">
+                            <i class="bi bi-plus-circle me-1"></i>Crear ficha de proveedor
+                        </a>
                     </div>
                     <select name="proveedor" id="proveedor" class="form-select" required>
                         <option value="">-- Seleccionar Proveedor --</option>
                         {% for prov in proveedores %}
-                            <option value="{{ prov.id }}">{{ prov.rut }} - {{ prov.razon_social }}</option>
+                            <option value="{{ prov.id }}" {% if documento.proveedor_id == prov.id %}selected{% endif %}>{{ prov.rut }} - {{ prov.razon_social }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -58,21 +69,25 @@
                 <div class="col-md-3">
                     <label for="tipo_documento" class="form-label fw-bold">Tipo de Documento *</label>
                     <select name="tipo_documento" id="tipo_documento" class="form-select" required>
+                        {% if modo_finanzas %}
                         <option value="FACTURA" selected>Factura Electrónica</option>
-                        <option value="BOLETA">Boleta</option>
-                        <option value="GUIA_DESPACHO">Guía de Despacho</option>
-                        <option value="NOTA_CREDITO">Nota de Crédito (Disminución/Devolución)</option>
+                        {% else %}
+                        <option value="FACTURA" selected>Factura Electrónica</option>
+                        <option value="BOLETA" {% if documento.tipo_documento == 'BOLETA' %}selected{% endif %}>Boleta</option>
+                        <option value="GUIA_DESPACHO" {% if documento.tipo_documento == 'GUIA_DESPACHO' %}selected{% endif %}>Guía de Despacho</option>
+                        <option value="NOTA_CREDITO" {% if documento.tipo_documento == 'NOTA_CREDITO' %}selected{% endif %}>Nota de Crédito (Disminución/Devolución)</option>
+                        {% endif %}
                     </select>
                 </div>
 
                 <div class="col-md-2">
                     <label for="numero_documento" class="form-label fw-bold">N° Documento *</label>
-                    <input type="text" name="numero_documento" id="numero_documento" class="form-control" placeholder="Ej: 148920" required>
+                    <input type="text" name="numero_documento" id="numero_documento" class="form-control" placeholder="Ej: 148920" value="{{ documento.numero_documento|default:'' }}" required>
                 </div>
 
                 <div class="col-md-3">
                     <label for="fecha_emision" class="form-label fw-bold">Fecha de Emisión *</label>
-                    <input type="date" name="fecha_emision" id="fecha_emision" class="form-control" required>
+                    <input type="date" name="fecha_emision" id="fecha_emision" class="form-control" value="{{ documento.fecha_emision|date:'Y-m-d' }}" required>
                 </div>
 
                 <div class="col-12">
@@ -84,7 +99,7 @@
 
                 <div class="col-12">
                     <label for="observaciones" class="form-label">Observaciones / Glosa General</label>
-                    <input type="text" name="observaciones" id="observaciones" class="form-control" placeholder="Ej: Materiales recibidos conformes para mantención central">
+                    <input type="text" name="observaciones" id="observaciones" class="form-control" value="{{ documento.observaciones|default:'' }}" placeholder="Ej: Materiales recibidos conformes para mantención central">
                 </div>
             </div>
         </div>
@@ -137,12 +152,20 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div class="text-muted small">
                     <i class="bi bi-shield-check text-success me-1"></i>
+                    {% if modo_finanzas %}
+                    <strong>Solo borrador:</strong> Guardar no crea movimientos ni modifica existencias. Bodega deberá confirmar el documento.
+                    {% else %}
                     <strong>Transacción Atómica:</strong> Si ocurre cualquier error, no se registrará ningún cambio parcial en base de datos.
+                    {% endif %}
                 </div>
                 <div>
                     <!-- Botón protegido contra doble submit -->
                     <button type="submit" class="btn btn-success btn-lg px-4 fw-bold" id="btnConfirmarIngreso">
+                        {% if modo_finanzas %}
+                        <i class="bi bi-save me-2"></i> Guardar borrador
+                        {% else %}
                         <i class="bi bi-check-circle-fill me-2"></i> Confirmar e Ingresar a Inventario
+                        {% endif %}
                     </button>
                 </div>
             </div>
@@ -151,6 +174,7 @@
 </form>
 
 <!-- Modal Rápido: Nuevo Proveedor -->
+{% if not modo_finanzas %}
 <div class="modal fade" id="modalNuevoProveedor" tabindex="-1" aria-labelledby="modalNuevoProveedorLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -184,6 +208,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Plantilla oculta para opciones de Artículos -->
 <template id="tmplArticuloOptions">
@@ -201,6 +226,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ lineas_iniciales|json_script:"lineasIniciales" }}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const tbody = document.getElementById('tbodyDetalles');
@@ -213,7 +239,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Fecha de hoy por defecto
     const hoy = new Date().toISOString().split('T')[0];
-    document.getElementById('fecha_emision').value = hoy;
+    if (!document.getElementById('fecha_emision').value) {
+        document.getElementById('fecha_emision').value = hoy;
+    }
 
     // Alerta dinámica según tipo de documento
     tipoDocSelect.addEventListener('change', function () {
@@ -357,8 +385,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     btnAgregar.addEventListener('click', () => agregarFila());
 
-    // Agregar primera fila por defecto
-    agregarFila();
+    const lineasIniciales = JSON.parse(document.getElementById('lineasIniciales').textContent);
+    if (lineasIniciales.length) {
+        lineasIniciales.forEach(linea => agregarFila(
+            linea.articulo_id,
+            linea.cantidad,
+            linea.precio_unitario_base,
+            linea.descuento_1_porcentaje,
+            linea.descuento_2_porcentaje,
+            linea.descuento_3_porcentaje
+        ));
+    } else {
+        agregarFila();
+    }
 
     // ==========================================
     // ENVÍO SEGURO Y PREVENCIÓN DE DOBLE SUBMIT
@@ -432,12 +471,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const textoOriginal = btnConfirmar.innerHTML;
         btnConfirmar.innerHTML = `
             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            Procesando e ingresando a inventario en tiempo real...
+            {% if modo_finanzas %}Guardando borrador...{% else %}Procesando e ingresando a inventario en tiempo real...{% endif %}
         `;
 
         try {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            const response = await fetch("{% url 'registro_documento' %}", {
+            const response = await fetch("{% if modo_finanzas %}{{ url_guardado }}{% else %}{% url 'registro_documento' %}{% endif %}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -460,7 +499,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Notificación de éxito y redirección inmediata
                 btnConfirmar.classList.remove('btn-success');
                 btnConfirmar.classList.add('btn-primary');
-                btnConfirmar.innerHTML = `<i class="bi bi-check2-all me-2"></i> ¡Stock Actualizado! Redirigiendo...`;
+                btnConfirmar.innerHTML = `{% if modo_finanzas %}<i class="bi bi-check2-all me-2"></i> Borrador guardado. Redirigiendo...{% else %}<i class="bi bi-check2-all me-2"></i> ¡Stock Actualizado! Redirigiendo...{% endif %}`;
 
                 window.location.href = data.redirect_url;
             } else {
@@ -478,6 +517,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // MODAL DE PROVEEDOR RÁPIDO
     // ==========================================
     const btnGuardarProv = document.getElementById('btnGuardarProveedorModal');
+    if (!btnGuardarProv) return;
     btnGuardarProv.addEventListener('click', async function () {
         const rut = document.getElementById('modal_prov_rut').value.trim();
         const razon = document.getElementById('modal_prov_razon').value.trim();

@@ -2,7 +2,7 @@
 Utilidades para trabajar con el RUT chileno (HU-07).
 
 Forma canónica (la que se guarda en la base de datos): con puntos y guion,
-por ejemplo "76.123.456-0". Es la misma que ya usaban los datos de HU-01.
+por ejemplo "76.123.456-0".
 """
 import re
 

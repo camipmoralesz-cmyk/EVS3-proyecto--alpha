@@ -5,6 +5,8 @@ from django.conf import settings
 from django.utils import timezone
 
 class MovimientoCardex(models.Model):
+    objects = models.Manager()
+
     TIPO_MOVIMIENTO_CHOICES = [
         ('INGRESO', 'Ingreso por Compra/Factura'),
         ('EGRESO', 'Egreso a Obra'),
@@ -22,7 +24,6 @@ class MovimientoCardex(models.Model):
     
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     obra = models.ForeignKey('obras.Obra', on_delete=models.PROTECT, null=True, blank=True)
-    #tecnico = models.ForeignKey('usuarios.Tecnico', on_delete=models.PROTECT, null=True, blank=True) se elimina ya que choca con usuario
     #usuario viene por defecto en django
     justificacion = models.TextField(help_text="Motivo obligatorio para ajustes o anulaciones")
     

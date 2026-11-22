@@ -3,17 +3,70 @@ import time
 from django.conf import settings
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views import View
 from django.views.decorators.cache import never_cache
 
 from .forms import LoginForm
-from .roles import roles_de
+from .roles import ALIAS_ROLES, normalizar_rol_id, roles_de
 
 MAX_INTENTOS = 3          # fallos seguidos antes de bloquear
 BLOQUEO_SEGUNDOS = 30     # duración del bloqueo (súbelo en producción)
 VENTANA_FALLOS = 15 * 60  # los fallos se olvidan tras 15 min sin intentos
+
+
+def _url_para_rol_id(rol_id):
+    """Resuelve la URL de inicio para cada perfil del Anexo C."""
+    if rol_id == 'gerencia':
+        return reverse('core:dashboard')
+    if rol_id == 'finanzas':
+        return reverse('finanzas:panel')
+    if rol_id == 'bodega':
+        return reverse('inventario_stock')
+    if rol_id == 'supervisor':
+        return reverse('obras:lista_obras')
+    if rol_id == 'tecnico':
+        return reverse('obras:lista_hojas_servicio')
+    if rol_id == 'consulta':
+        return reverse('core:consulta_lectura', kwargs={'seccion': 'catalogo'})
+    return reverse('usuarios:inicio')
+
+
+def obtener_ruta_por_rol(user, rol_seleccionado=None):
+    """Determina la URL del panel correspondiente según el grupo/rol del usuario."""
+    grupos = set(user.groups.values_list('name', flat=True))
+    rol_sel_canon = normalizar_rol_id(rol_seleccionado)
+
+    # 1. Si el usuario pertenece a grupos y seleccionó explícitamente uno de los suyos al loguearse
+    if rol_sel_canon and grupos.intersection(ALIAS_ROLES.get(rol_sel_canon, ())):
+        return _url_para_rol_id(rol_sel_canon)
+
+    # 2. En caso contrario, filtra los grupos del usuario en orden de especificidad
+    for rol_id in ('supervisor', 'bodega', 'finanzas', 'tecnico', 'consulta', 'gerencia'):
+        if grupos.intersection(ALIAS_ROLES.get(rol_id, ())):
+            return _url_para_rol_id(rol_id)
+
+    # 3. Si es superusuario sin grupo específico, respeta el rol elegido en login o va a Gerencia
+    if user.is_superuser:
+        if rol_sel_canon:
+            return _url_para_rol_id(rol_sel_canon)
+        return _url_para_rol_id('gerencia')
+
+    # 4. Respaldo si la cuenta aún no tiene grupo asignado
+    return reverse('usuarios:inicio')
+
+
+class LoginPorRolView(LoginRequiredMixin, View):
+    """Redirige al usuario autenticado directamente al panel de su rol/grupo."""
+
+    def get(self, request, *args, **kwargs):
+        rol_activo = request.session.get('rol_activo')
+        destino = obtener_ruta_por_rol(request.user, rol_seleccionado=rol_activo)
+        return redirect(destino)
 
 
 def _claves(request, ident):
@@ -29,8 +82,10 @@ def _segundos_bloqueo(clave_bloqueo):
 
 
 def _destino(request):
-    siguiente = request.POST.get('next') or request.GET.get('next') or ''
-    if siguiente and url_has_allowed_host_and_scheme(
+    siguiente = (request.POST.get('next') or request.GET.get('next') or '').strip()
+    # Si 'next' viene vacío o apunta a la raíz '/', delegamos a LoginPorRolView
+    # para que el usuario vaya al panel correspondiente a su rol/grupo.
+    if siguiente and siguiente != '/' and url_has_allowed_host_and_scheme(
         siguiente, allowed_hosts={request.get_host()},
         require_https=request.is_secure(),
     ):
@@ -56,6 +111,7 @@ def login_view(request):
             if form.is_valid():
                 cache.delete_many([k_fallos, k_bloqueo])
                 login(request, form.user)
+                request.session['rol_activo'] = form.cleaned_data.get('rol')
                 if not form.cleaned_data['recordarme']:
                     request.session.set_expiry(0)  # expira al cerrar el navegador
                 return redirect(_destino(request))

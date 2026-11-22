@@ -4,16 +4,21 @@ from django.test import TestCase
 from django.core.exceptions import ValidationError
 from apps.catalogo.models import Categoria, Articulo
 from apps.entidades.models import Proveedor
-from apps.inventario.models import DocumentoEntrada, MovimientoInventario
+from apps.inventario.models import (
+    DetalleDocumento,
+    DocumentoEntrada,
+    MovimientoInventario,
+)
 from apps.inventario.services import (
     calcular_descuentos_sucesivos,
     calcular_subtotal_linea,
+    confirmar_documento_borrador,
     registrar_documento_entrada
 )
 
 class CalculoDescuentosTest(TestCase):
     """
-    Pruebas unitarias para la lógica matemática de descuentos sucesivos (HU-01).
+    Pruebas unitarias para la lógica matemática de descuentos sucesivos.
     """
     def test_sin_descuentos(self):
         # Precio base 10.000 sin descuentos -> 10.000
@@ -50,7 +55,7 @@ class CalculoDescuentosTest(TestCase):
 class TransaccionInventarioTest(TestCase):
     """
     Pruebas para verificar la atomicidad y seguridad en la actualización
-    de stock, costos y registro de movimientos de inventario (HU-01).
+    de stock, costos y registro de movimientos de inventario.
     """
     def setUp(self):
         self.categoria = Categoria.objects.create(nombre="Materiales Básicos")
@@ -217,3 +222,40 @@ class TransaccionInventarioTest(TestCase):
 
         # Verificar que no quedaron movimientos huérfanos
         self.assertEqual(MovimientoInventario.objects.count(), 0)
+
+    def test_confirmar_borrador_actualiza_stock_y_registra_cada_linea_una_vez(self):
+        documento = DocumentoEntrada.objects.create(
+            proveedor=self.proveedor,
+            tipo_documento=DocumentoEntrada.TIPO_FACTURA,
+            numero_documento='BORRADOR-100',
+            fecha_emision='2026-11-07',
+            estado=DocumentoEntrada.ESTADO_BORRADOR,
+            monto_neto=10000,
+        )
+        for cantidad in (Decimal('2.00'), Decimal('3.00')):
+            DetalleDocumento.objects.create(
+                documento=documento,
+                articulo=self.articulo1,
+                cantidad=cantidad,
+                precio_unitario_base=2000,
+                precio_unitario_final=2000,
+                subtotal_linea=int(cantidad * 2000),
+            )
+
+        self.assertEqual(self.articulo1.stock_actual, Decimal('100.00'))
+        self.assertEqual(MovimientoInventario.objects.filter(documento=documento).count(), 0)
+
+        confirmar_documento_borrador(documento.pk, usuario=None)
+
+        documento.refresh_from_db()
+        self.articulo1.refresh_from_db()
+        self.assertEqual(documento.estado, DocumentoEntrada.ESTADO_CONFIRMADO)
+        self.assertEqual(self.articulo1.stock_actual, Decimal('105.00'))
+        self.assertEqual(MovimientoInventario.objects.filter(documento=documento).count(), 2)
+
+        with self.assertRaises(ValidationError):
+            confirmar_documento_borrador(documento.pk, usuario=None)
+
+        self.articulo1.refresh_from_db()
+        self.assertEqual(self.articulo1.stock_actual, Decimal('105.00'))
+        self.assertEqual(MovimientoInventario.objects.filter(documento=documento).count(), 2)

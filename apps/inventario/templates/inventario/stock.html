@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Stock en Tiempo Real | FYAG Logística{% endblock %}
+{% block header_title %}Control de Existencias y Stock Crítico{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-white mb-1">Inventario y Stock en Tiempo Real</h1>
+            <p class="text-secondary mb-0">Monitoreo de existencias en bodega y alertas de quiebre de stock.</p>
+        </div>
+        <a href="{% url 'historial_movimientos' %}" class="btn btn-outline-info">
+            <i class="bi bi-journal-check me-1"></i> Ver Kardex
+        </a>
+    </div>
+
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="text-secondary small">
+                            <th>Código</th>
+                            <th>Artículo</th>
+                            <th>Categoría</th>
+                            <th>Ubicación</th>
+                            <th>Stock Actual</th>
+                            <th>Stock Mínimo</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for art in articulos %}
+                        <tr>
+                            <td><code>{{ art.codigo_interno }}</code></td>
+                            <td class="fw-semibold text-white">{{ art.nombre }}</td>
+                            <td>{{ art.categoria|default:"-" }}</td>
+                            <td>{{ art.ubicacion_bodega|default:"-" }}</td>
+                            <td class="fw-bold">{{ art.stock_actual }}</td>
+                            <td>{{ art.stock_minimo }}</td>
+                            <td>
+                                {% if art.stock_actual <= art.stock_minimo %}
+                                    <span class="badge bg-danger">Stock Crítico</span>
+                                {% else %}
+                                    <span class="badge bg-success">Normal</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-secondary py-4">No hay artículos registrados.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

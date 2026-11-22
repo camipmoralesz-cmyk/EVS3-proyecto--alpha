@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}FYAG | {{ titulo }}{% endblock %}
+{% block header_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+{% include "finanzas/_nav.html" %}
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="fw-bold text-light mb-0">
+                <i class="bi bi-calculator text-info me-2"></i> Editar Presupuesto de Obra
+            </h3>
+            <a href="{% url 'finanzas:presupuestos_lista' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Volver a Presupuestos
+            </a>
+        </div>
+
+        <div class="card border-secondary bg-dark bg-opacity-50 shadow-sm">
+            <div class="card-header border-secondary py-3">
+                <h5 class="card-title mb-0 fw-semibold text-info">
+                    <i class="bi bi-building-gear me-2"></i> {{ obra.nombre }}
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="small text-secondary">Cliente Mandante</div>
+                        <div class="fw-semibold">{{ obra.mandante.razon_social }}</div>
+                        <div class="small font-monospace text-info">{{ obra.mandante.rut_formateado }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small text-secondary">Estado de la Obra</div>
+                        <div>
+                            <span class="badge {% if obra.estado == 'ACTIVA' %}bg-success{% elif obra.estado == 'CERRADA' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                {{ obra.get_estado_display }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold" for="{{ form.presupuesto_total.id_for_label }}">
+                            {{ form.presupuesto_total.label }} *
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            {{ form.presupuesto_total }}
+                        </div>
+                        <div class="form-text text-secondary">
+                            Ingrese un monto mayor o igual a 0. No se permiten presupuestos negativos.
+                        </div>
+                        {% if form.presupuesto_total.errors %}
+                            <div class="text-danger small mt-1 fw-semibold">
+                                <i class="bi bi-exclamation-circle me-1"></i>{{ form.presupuesto_total.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{% url 'finanzas:presupuestos_lista' %}" class="btn btn-outline-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">
+                            <i class="bi bi-check-lg me-1"></i> Guardar Presupuesto
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

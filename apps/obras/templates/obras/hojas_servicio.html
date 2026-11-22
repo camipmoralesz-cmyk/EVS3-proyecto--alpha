@@ -1,0 +1,87 @@
+{% extends 'obras/base_obras.html' %}
+
+{% block title %}Hojas de Servicio | FYAG{% endblock %}
+{% block header_title %}Gestión de Hojas de Servicio en Terreno{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario de Nueva Hoja de Servicio -->
+    <div class="card border-secondary border-opacity-25 mb-4" style="background-color: #1a1d21;">
+        <div class="card-header text-info fw-bold">
+            <i class="bi bi-file-earmark-plus me-1"></i> REGISTRAR HOJA DE SERVICIO Y UBICACIÓN EN TERRENO
+        </div>
+        <div class="card-body">
+            <form method="post" class="row g-3">
+                {% csrf_token %}
+                <div class="col-md-5">
+                    <label class="form-label text-secondary small text-uppercase">Obra Asignada</label>
+                    <select name="obra" class="form-select bg-dark text-light border-secondary" required>
+                        <option value="">Seleccione obra...</option>
+                        {% for ob in obras %}
+                            <option value="{{ ob.id }}">{{ ob.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label text-secondary small text-uppercase">Sector o Ubicación de Faena</label>
+                    <input type="text" name="sector" placeholder="Ej: Cámara Frigorífica N°2 - Sector Norte" class="form-control bg-dark text-light border-secondary" required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label text-secondary small text-uppercase">Detalle del Trabajo / Servicio Ejecutado</label>
+                    <textarea name="descripcion" rows="2" placeholder="Describe las labores técnicas realizadas en terreno..." class="form-control bg-dark text-light border-secondary" required></textarea>
+                </div>
+                <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-primary fw-semibold">
+                        <i class="bi bi-save me-1"></i> Guardar Hoja de Servicio
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Listado de Hojas de Servicio -->
+    <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+        <div class="card-header text-white fw-bold d-flex justify-content-between align-items-center">
+            <span>HOJAS DE SERVICIO REGISTRADAS</span>
+            <span class="badge bg-dark border border-info text-info">{{ hojas.count }} Hojas</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="text-secondary small text-uppercase">
+                            <th>N° Hoja</th>
+                            <th>Obra</th>
+                            <th>Detalle / Registro</th>
+                            <th class="text-end">Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hoja in hojas %}
+                        <tr>
+                            <td><code>#{{ hoja.id }}</code></td>
+                            <td class="fw-semibold text-white">{{ hoja.obra.nombre }}</td>
+                            <td>{{ hoja }}</td>
+                            <td class="text-end text-secondary small">{{ hoja.fecha|date:"d/m/Y H:i"|default:"Registrada" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-secondary py-4">No hay hojas de servicio registradas para tus obras.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
