@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'apps.obras',
     'apps.usuarios',
     'apps.core',  # Agrega la aplicación core
+    'apps.finanzas',
 ]
 
 MIDDLEWARE = [
