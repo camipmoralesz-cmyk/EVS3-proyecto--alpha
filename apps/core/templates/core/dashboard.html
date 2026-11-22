@@ -5,8 +5,6 @@
 
 {% block content %}
 <div class="container-fluid px-0">
-    
-    <!-- Título y subtítulo -->
     <div class="mb-4">
         <h1 class="h3 fw-bold text-white mb-1">Dashboard Logístico - FYAG</h1>
         <p class="text-secondary mb-0">Supervisión general de bodega, trazabilidad Kardex y alertas de inventario crítico.</p>
@@ -80,6 +78,9 @@
                             <i class="bi bi-journal-text me-2"></i>Últimos Movimientos de Kardex
                         </h5>
                         <a href="{% url 'core:auditoria_kardex' %}" class="btn btn-sm btn-outline-info">Ver historial completo</a>
+                        {% if 'bodega' in mis_roles or 'gerencia' in mis_roles or 'finanzas' in mis_roles %}
+                        <a href="{% url 'historial_movimientos' %}" class="btn btn-sm btn-outline-info">Ver historial completo</a>
+                        {% endif %}
                     </div>
 
                     <div class="table-responsive">
@@ -159,6 +160,50 @@
             </div>
         </div>
 
+    </div>
+</div>
+{% endblock %}
+        <div class="col-12 col-lg-4 d-flex flex-column gap-4">
+
+            <!-- Alertas de stock -->
+            <div class="card border-warning border-opacity-50" style="background-color: #1a1d21;">
+                <div class="card-body">
+                    <h5 class="card-title text-warning fw-bold mb-3"><i class="bi bi-bell me-2"></i>Alertas de Stock</h5>
+                    {% for a in articulos_alerta %}
+                    <div class="d-flex justify-content-between align-items-center border-bottom border-secondary border-opacity-25 py-2">
+                        <div>
+                            <div class="small fw-semibold">{{ a.nombre }}</div>
+                            <div class="small text-secondary">Mínimo: {{ a.stock_minimo }}</div>
+                        </div>
+                        <span class="badge {% if a.stock_actual <= a.stock_critico %}bg-danger{% else %}bg-warning text-dark{% endif %}">{{ a.stock_actual }}</span>
+                    </div>
+                    {% empty %}
+                    <p class="text-secondary small mb-0">Sin alertas: todos los artículos sobre su mínimo.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Accesos rápidos de Bodega -->
+            {% if 'bodega' in mis_roles %}
+            <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+                <div class="card-body">
+                    <h5 class="card-title text-info fw-bold mb-3"><i class="bi bi-lightning-charge me-2"></i>Accesos Rápidos</h5>
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'registro_documento' %}" class="btn btn-primary"><i class="bi bi-file-earmark-plus me-2"></i>Ingresar documento</a>
+                        <a href="{% url 'lista_solicitudes' %}" class="btn btn-outline-light d-flex justify-content-between">
+                            <span><i class="bi bi-building-gear me-2"></i>Despachos a obra</span>
+                            <span class="badge {% if solicitudes_pendientes %}bg-danger{% else %}bg-secondary{% endif %}">{{ solicitudes_pendientes }}</span>
+                        </a>
+                        <a href="{% url 'salida_tipificada' %}" class="btn btn-outline-light d-flex justify-content-between">
+                            <span><i class="bi bi-box-arrow-right me-2"></i>Mermas y devoluciones</span>
+                            <span class="badge bg-secondary" title="Mermas del mes">{{ mermas_mes }}</span>
+                        </a>
+                        <a href="{% url 'lista_sesiones_inventario' %}" class="btn btn-outline-light"><i class="bi bi-clipboard-check me-2"></i>Inventario físico</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

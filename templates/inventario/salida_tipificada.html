@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Mermas, devoluciones y uso interno{% endblock %}
+{% block header_title %}Salidas Tipificadas{% endblock %}
+
+{% block content %}
+<h3 class="fw-bold text-white mb-1"><i class="bi bi-box-arrow-right text-primary me-2"></i>Mermas, devoluciones y uso interno</h3>
+<p class="text-secondary small">Cada movimiento queda en el Cardex sin posibilidad de edición ni eliminación. La justificación es obligatoria.</p>
+
+<form method="post" class="card card-custom p-4" style="max-width: 680px;" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+    <div class="mb-3"><label class="form-label fw-bold">{{ form.tipo.label }}</label>{{ form.tipo }}{{ form.tipo.errors }}</div>
+    <div class="mb-3"><label class="form-label fw-bold">{{ form.articulo.label }}</label>{{ form.articulo }}{{ form.articulo.errors }}</div>
+    <div class="mb-3"><label class="form-label fw-bold">{{ form.cantidad.label }}</label>{{ form.cantidad }}{{ form.cantidad.errors }}</div>
+    <div class="mb-3" id="grp-obra"><label class="form-label fw-bold">{{ form.obra.label }}</label>{{ form.obra }}<div class="text-danger small">{{ form.obra.errors }}</div></div>
+    <div class="mb-3" id="grp-proveedor"><label class="form-label fw-bold">{{ form.proveedor.label }}</label>{{ form.proveedor }}<div class="text-danger small">{{ form.proveedor.errors }}</div></div>
+    <div class="mb-3"><label class="form-label fw-bold">{{ form.justificacion.label }}</label>{{ form.justificacion }}<div class="text-danger small">{{ form.justificacion.errors }}</div></div>
+
+    <button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Registrar movimiento</button>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const tipo = document.getElementById('id_tipo');
+function actualizar() {
+  document.getElementById('grp-obra').style.display = tipo.value === 'DEVOLUCION_OBRA' ? '' : 'none';
+  document.getElementById('grp-proveedor').style.display = tipo.value === 'DEVOLUCION_PROVEEDOR' ? '' : 'none';
+}
+tipo.addEventListener('change', actualizar); actualizar();
+</script>
+{% endblock %}

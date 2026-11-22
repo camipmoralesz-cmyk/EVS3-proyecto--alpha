@@ -7,10 +7,12 @@ from django.db.models.functions import Replace
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from apps.usuarios.roles import rol_requerido
 from .forms import ContactoFormSet, CuentaFormSet, ProveedorForm
 from .models import Proveedor
 
 
+@rol_requerido('finanzas', 'bodega', 'gerencia')
 def lista_entidades(request):
     """
     Lista las fichas con filtro por tipo (Proveedor / Mandante) y un buscador
@@ -100,15 +102,18 @@ def _guardar_entidad(request, instancia=None):
     return render(request, 'entidades/form.html', contexto)
 
 
+@rol_requerido('finanzas')
 def crear_entidad(request):
     return _guardar_entidad(request)
 
 
+@rol_requerido('finanzas')
 def editar_entidad(request, pk):
     entidad = get_object_or_404(Proveedor, pk=pk)
     return _guardar_entidad(request, instancia=entidad)
 
 
+@rol_requerido('finanzas')
 @require_POST
 def cambiar_estado_entidad(request, pk):
     """
