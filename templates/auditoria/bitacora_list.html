@@ -1,0 +1,100 @@
+(Historial transversal de cambios en registros críticos del sistema: precios, artículos, facturas, clientes, proveedores y exportaciones, mostrando valores anteriores y nuevos).
+
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">Bitácora General de Auditoría</h2>
+            <p class="text-muted mb-0">Registro inalterable de creaciones, modificaciones de datos y operaciones críticas</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'auditoria:lista_cardex' %}" class="btn btn-outline-secondary btn-sm">Cardex</a>
+            <a href="{% url 'auditoria:lista_bitacora' %}" class="btn btn-primary btn-sm">Bitácora de Cambios</a>
+            <a href="{% url 'auditoria:logs_acceso' %}" class="btn btn-outline-secondary btn-sm">Registro de Accesos</a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small">Módulo</label>
+                    <input type="text" name="modulo" value="{{ modulo_filtro }}" class="form-control" placeholder="Ej: Catalogo, Inventario, Entidades...">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small">Tipo de Operación</label>
+                    <select name="accion" class="form-select">
+                        <option value="">Todas las acciones</option>
+                        <option value="CREAR" {% if accion_filtro == 'CREAR' %}selected{% endif %}>Creación</option>
+                        <option value="EDITAR" {% if accion_filtro == 'EDITAR' %}selected{% endif %}>Modificación</option>
+                        <option value="ELIMINAR" {% if accion_filtro == 'ELIMINAR' %}selected{% endif %}>Eliminación / Desactivación</option>
+                        <option value="ANULAR" {% if accion_filtro == 'ANULAR' %}selected{% endif %}>Anulación / Contra-asiento</option>
+                        <option value="EXPORTAR" {% if accion_filtro == 'EXPORTAR' %}selected{% endif %}>Exportación de Reporte</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-dark btn-sm px-4">Filtrar</button>
+                    <a href="{% url 'auditoria:lista_bitacora' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de Bitácora -->
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Usuario</th>
+                        <th>IP Origen</th>
+                        <th>Módulo</th>
+                        <th>Acción</th>
+                        <th>Detalle</th>
+                        <th>Valores Anteriores / Nuevos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in registros %}
+                        <tr>
+                            <td class="text-nowrap">{{ r.fecha_hora|date:"d/m/Y H:i:s" }}</td>
+                            <td class="fw-semibold">{{ r.usuario.username|default:"Sistema" }}</td>
+                            <td><code>{{ r.ip_origen|default:"-" }}</code></td>
+                            <td><span class="badge bg-secondary">{{ r.modulo }}</span></td>
+                            <td>
+                                {% if r.accion == 'CREAR' %}<span class="badge bg-success">Creación</span>
+                                {% elif r.accion == 'EDITAR' %}<span class="badge bg-info text-dark">Modificación</span>
+                                {% elif r.accion == 'ELIMINAR' or r.accion == 'ANULAR' %}<span class="badge bg-danger">{{ r.get_accion_display }}</span>
+                                {% else %}<span class="badge bg-dark">{{ r.get_accion_display }}</span>{% endif %}
+                            </td>
+                            <td><small>{{ r.descripcion }}</small></td>
+                            <td>
+                                {% if r.valores_anteriores %}
+                                    <div class="small text-danger"><strong>Antes:</strong> {{ r.valores_anteriores }}</div>
+                                {% endif %}
+                                {% if r.valores_nuevos %}
+                                    <div class="small text-success"><strong>Ahora:</strong> {{ r.valores_nuevos }}</div>
+                                {% endif %}
+                                {% if not r.valores_anteriores and not r.valores_nuevos %}
+                                    <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                Aún no se han registrado eventos en la bitácora de auditoría.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

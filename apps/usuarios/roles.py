@@ -52,6 +52,12 @@ ROLES = [
         'badge': 'Solo Lectura',
         'description': 'Acceso únicamente de lectura a la información autorizada del sistema.',
     },
+    {
+        'id': 'auditor',
+        'name': 'Auditor Interno / Fiscalización',
+        'badge': 'Solo Lectura & Cardex',
+        'description': 'Fiscalización de Cardex inmutable, bitácora de cambios, logs de acceso y exportación.',
+    },
 ]
 
 ROLES_POR_ID = {r['id']: r for r in ROLES}
