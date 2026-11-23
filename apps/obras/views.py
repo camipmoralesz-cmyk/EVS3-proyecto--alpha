@@ -106,7 +106,14 @@ def lista_solicitudes(request):
         articulo_id = request.POST.get('articulo')
         cantidad = request.POST.get('cantidad')
         sector = request.POST.get('sector', '').strip()
+        observaciones = request.POST.get('observaciones', '').strip()
 
+        if not observaciones:
+            observaciones = (
+                f'Solicitud para sector/ubicación: {sector}'
+                if sector
+                else 'Solicitud de material desde terreno'
+            )
         obra = get_object_or_404(obras, pk=obra_id)
         articulo = get_object_or_404(Articulo, pk=articulo_id)
 
@@ -145,7 +152,7 @@ def lista_hojas_servicio(request):
 
     if request.method == 'POST':
         obra_id = request.POST.get('obra')
-        sector = request.POST.get('sector', '').strip()
+        sector = request.POST.get('sector', '').strip() or 'General'
         descripcion = request.POST.get('descripcion', '').strip()
 
         obra = get_object_or_404(obras, pk=obra_id)
@@ -168,6 +175,7 @@ def lista_hojas_servicio(request):
             'horas_invertidas': horas,
             'fecha_servicio': timezone.localdate(),
             'registrado_por': request.user,
+            'sector': sector,
         }
 
         hoja = HojaServicioObra(**datos)

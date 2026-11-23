@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 from apps.catalogo.models import Articulo
 from apps.entidades.models import Proveedor
 
@@ -12,6 +13,16 @@ class Obra(models.Model):
         ACTIVA = 'ACTIVA', 'Activa'
         INACTIVA = 'INACTIVA', 'Inactiva'
         CERRADA = 'CERRADA', 'Cerrada'
+
+    class TipoServicio(models.TextChoices):
+        PROYECTO = 'PROYECTO', 'Proyecto'
+        MANTENCION = 'MANTENCION', 'Mantención'
+        CLIMATIZACION = 'CLIMATIZACION', 'Climatización'
+        PROYECTO_ELECTRICO = 'PROYECTO_ELECTRICO', 'Proyecto eléctrico'
+        EMERGENCIA = 'EMERGENCIA', 'Emergencia'
+        GARANTIA = 'GARANTIA', 'Garantía'
+        VENTA_REPUESTOS = 'VENTA_REPUESTOS', 'Venta de repuestos'
+        MEJORAS = 'MEJORAS', 'Mejoras'
 
     nombre = models.CharField(
         max_length=150,
@@ -27,6 +38,27 @@ class Obra(models.Model):
             'activo': True
         },
         verbose_name="Cliente mandante"
+    )
+
+    numero_presupuesto = models.CharField(
+        max_length=60,
+        blank=True,
+        default='',
+        verbose_name="Número de presupuesto asociado"
+    )
+
+    tipo_servicio = models.CharField(
+        max_length=25,
+        choices=TipoServicio.choices,
+        default=TipoServicio.PROYECTO,
+        verbose_name="Tipo de servicio"
+    )
+
+    tecnico_responsable = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        verbose_name="Técnico responsable"
     )
 
     presupuesto_total = models.DecimalField(
@@ -46,7 +78,8 @@ class Obra(models.Model):
     )
 
     fecha_creacion = models.DateTimeField(
-        auto_now_add=True
+        default=timezone.now,
+        verbose_name="Fecha de creación"
     )
 
     class Meta:
@@ -54,33 +87,35 @@ class Obra(models.Model):
         verbose_name_plural = "Obras"
         ordering = ['nombre']
 
+    def __str__(self):
+        return self.nombre
 
     def clean(self):
-            super().clean()
+        super().clean()
 
-            if self.mandante_id:
-                if self.mandante.tipo != Proveedor.Tipo.MANDANTE:
-                    raise ValidationError({
-                        'mandante': 'La entidad seleccionada debe ser un mandante.'
-                    })
+        if self.mandante_id:
+            if self.mandante.tipo != Proveedor.Tipo.MANDANTE:
+                raise ValidationError({
+                    'mandante': 'La entidad seleccionada debe ser un mandante.'
+                })
 
             if not self.mandante.activo:
                 raise ValidationError({
                     'mandante': 'El mandante seleccionado debe estar activo.'
                 })
 
-            if self.presupuesto_total is not None and self.presupuesto_total < 0:
-                raise ValidationError({
-                    'presupuesto_total': 'El presupuesto no puede ser negativo.'
-                })
+        if self.presupuesto_total is not None and self.presupuesto_total < 0:
+            raise ValidationError({
+                'presupuesto_total': 'El presupuesto no puede ser negativo.'
+            })
 
-            # REGLA DE NEGOCIO: No se puede cambiar el estado a CERRADA si hay solicitudes pendientes
-            if self.pk and self.estado == self.Estado.CERRADA:
-                solicitudes_pendientes = self.solicitudes_materiales.filter(estado='PENDIENTE').exists()
-                if solicitudes_pendientes:
-                    raise ValidationError({
-                        'estado': 'No se puede cerrar la obra porque existen solicitudes de materiales pendientes de despacho por Bodega.'
-                    })
+        # REGLA DE NEGOCIO: No se puede cambiar el estado a CERRADA si hay solicitudes pendientes
+        if self.pk and self.estado == self.Estado.CERRADA:
+            solicitudes_pendientes = self.solicitudes_materiales.filter(estado='PENDIENTE').exists()
+            if solicitudes_pendientes:
+                raise ValidationError({
+                    'estado': 'No se puede cerrar la obra porque existen solicitudes de materiales pendientes de despacho por Bodega.'
+                })
 
 
 class SolicitudMaterialObra(models.Model):
@@ -110,6 +145,18 @@ class SolicitudMaterialObra(models.Model):
         verbose_name="Cantidad solicitada"
     )
 
+    sector = models.CharField(
+        max_length=120,
+        default='General',
+        verbose_name="Sector / Ubicación en obra"
+    )
+
+    observaciones = models.TextField(
+        blank=True,
+        default='',
+        verbose_name="Observaciones / Motivo"
+    )
+
     estado = models.CharField(
         max_length=20,
         choices=EstadoSolicitud.choices,
@@ -131,8 +178,9 @@ class SolicitudMaterialObra(models.Model):
         verbose_name = "Solicitud de Material"
         verbose_name_plural = "Solicitudes de Materiales"
         ordering = ['-fecha_solicitud']
+
     def __str__(self):
-        return f"Solicitud #{id or 'Nueva'} - {self.articulo.nombre} ({self.cantidad} un.)"
+        return f"Solicitud #{self.pk or 'Nueva'} - {self.articulo.nombre} ({self.cantidad} un.)"
 
 
 class HojaServicioObra(models.Model):
@@ -145,31 +193,37 @@ class HojaServicioObra(models.Model):
         related_name='hojas_servicio',
         verbose_name="Obra"
     )
-    
+
     tecnico_responsable = models.CharField(
         max_length=120,
         verbose_name="Personal técnico en terreno"
     )
-    
+
     descripcion_trabajo = models.TextField(
         verbose_name="Descripción de labores de refrigeración / agroindustria"
     )
-    
+
     horas_invertidas = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         verbose_name="Horas hombre invertidas"
     )
-    
+
     fecha_servicio = models.DateField(
         verbose_name="Fecha de ejecución"
     )
-    
+
     registrado_por = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
         verbose_name="Supervisor que registra"
     )
+    
+    sector = models.CharField(
+    max_length=120,
+    default='General',
+    verbose_name="Sector / Ubicación en obra"
+)
 
     class Meta:
         verbose_name = "Hoja de Servicio"
