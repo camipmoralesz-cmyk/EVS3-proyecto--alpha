@@ -7,17 +7,19 @@
   <style>
     :root{--fondo:#020617;--panel:#0f172a;--borde:#1e293b;--texto:#e2e8f0;--suave:#94a3b8;--cian:#06b6d4;--cian-claro:#22d3ee;--rojo:#fb7185}
     *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:var(--fondo);color:var(--texto);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+    body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:radial-gradient(circle at 20% 30%, #07192f 0%, var(--fondo) 70%);color:var(--texto);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;position:relative;overflow-x:hidden}
+    #fondo-hielo{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+    main,footer{position:relative;z-index:1}
     main{flex:1;display:grid;grid-template-columns:1fr;gap:2rem;align-items:center;max-width:64rem;width:100%;margin:0 auto;padding:2rem 1rem}
     @media(min-width:900px){main{grid-template-columns:1fr 1fr}}
     .marca h1{font-size:clamp(1.9rem,4vw,2.9rem);line-height:1.1;margin:0 0 .75rem}
     .marca h1 span{color:var(--cian-claro)}
     .marca p{color:var(--suave);max-width:28rem;line-height:1.5}
     .datos{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;max-width:28rem;margin-top:1.25rem}
-    .datos div{background:rgba(15,23,42,.7);border:1px solid var(--borde);border-radius:.6rem;padding:.7rem}
+    .datos div{background:rgba(15,23,42,.72);backdrop-filter:blur(6px);border:1px solid var(--borde);border-radius:.6rem;padding:.7rem}
     .datos b{display:block;font-size:.85rem}
     .datos small{color:var(--suave)}
-    .tarjeta{background:var(--panel);border:1px solid var(--borde);border-top:4px solid var(--cian);border-radius:1rem;padding:1.75rem;box-shadow:0 20px 40px rgba(0,0,0,.4)}
+    .tarjeta{background:rgba(15,23,42,.92);backdrop-filter:blur(8px);border:1px solid var(--borde);border-top:4px solid var(--cian);border-radius:1rem;padding:1.75rem;box-shadow:0 20px 40px rgba(0,0,0,.45)}
     .tarjeta h2{margin:0;font-size:1.4rem}
     .sub{color:var(--suave);font-size:.9rem;margin:.25rem 0 1.25rem}
     label{display:block;font-size:.8rem;font-weight:600;color:#cbd5e1;margin:0 0 .35rem}
@@ -44,19 +46,22 @@
     .modal-clave p{background:rgba(8,51,68,.7);border:1px solid rgba(6,182,212,.4);border-radius:.5rem;padding:.75rem;font-size:.85rem;color:#cffafe}
     .modal-info>div{background:var(--panel);border:1px solid var(--borde);text-align:left}
     .modal button.cerrar{margin-top:1rem;width:100%;padding:.6rem;border:0;border-radius:.6rem;background:#fff;color:#020617;font-weight:700;cursor:pointer}
-    footer{background:var(--panel);border-top:1px solid var(--borde);padding:.8rem 1rem;font-size:.75rem;color:var(--suave);display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;justify-content:space-between}
+    footer{background:rgba(15,23,42,.92);border-top:1px solid var(--borde);padding:.8rem 1rem;font-size:.75rem;color:var(--suave);display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;justify-content:space-between}
     @media(prefers-reduced-motion:no-preference){.alerta{animation:sacudir .4s ease-in-out}}
     @keyframes sacudir{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
   </style>
 </head>
 <body>
+
+<canvas id="fondo-hielo"></canvas>
+
 <main>
   <section class="marca">
     <h1>Frío y Agroindustria <span>SpA</span></h1>
-    <p>Gestión logística, control de bodega con Cardex inalterable y valorización por Precio Medio Ponderado (PMP).</p>
+    <p>Sistema de gestión logística, control de inventario y trazabilidad operacional.</p>
     <div class="datos">
-      <div><b>Control por roles</b><small>5 perfiles segregados</small></div>
-      <div><b>Cardex auditable</b><small>Inalterable SHA-256</small></div>
+      <div><b>Acceso según perfil   ✔️</b><small></small></div>
+      <div><b>Trazabilidad    ✔️</b><small></small></div>
     </div>
   </section>
 
@@ -73,7 +78,7 @@
       <div class="alerta" role="alert">{{ form.non_field_errors.0 }}</div>
     {% endif %}
 
-    <form method="post" id="form-login" novalidate>
+    <form method="post" id="form-login" data-bloqueado="{{ bloqueado|default:0 }}" novalidate>
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ next }}">
 
@@ -131,6 +136,107 @@
 </footer>
 
 <script>
+  // Fondo animado de cristales de hielo y escarcha
+  (function () {
+    const canvas = document.getElementById('fondo-hielo');
+    const ctx = canvas.getContext('2d');
+    let w, h, copos = [];
+    const mouse = { x: null, y: null };
+
+    function redimensionar() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', redimensionar);
+    window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+    window.addEventListener('mouseleave', () => { mouse.x = null; mouse.y = null; });
+    redimensionar();
+
+    function dibujarCopo(x, y, radio, angulo, opacidad) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angulo);
+      ctx.strokeStyle = `rgba(165, 243, 252, ${opacidad})`;
+      ctx.lineWidth = radio > 10 ? 1.3 : 0.9;
+      ctx.lineCap = 'round';
+
+      for (let i = 0; i < 6; i++) {
+        ctx.rotate(Math.PI / 3);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -radio);
+        ctx.stroke();
+
+        if (radio > 7) {
+          const rama1 = radio * 0.55;
+          const largo1 = radio * 0.32;
+          ctx.beginPath();
+          ctx.moveTo(0, -rama1);
+          ctx.lineTo(-largo1 * 0.7, -rama1 - largo1 * 0.7);
+          ctx.moveTo(0, -rama1);
+          ctx.lineTo(largo1 * 0.7, -rama1 - largo1 * 0.7);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    const cantidad = Math.min(55, Math.floor((w * h) / 20000));
+    for (let i = 0; i < cantidad; i++) {
+      const esCristal = Math.random() > 0.45;
+      copos.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: esCristal ? (Math.random() * 10 + 7) : (Math.random() * 2.5 + 1),
+        vy: Math.random() * 0.65 + 0.25,
+        vx: (Math.random() - 0.5) * 0.35,
+        angulo: Math.random() * Math.PI * 2,
+        vRot: (Math.random() - 0.5) * 0.008,
+        opacidad: esCristal ? (Math.random() * 0.35 + 0.2) : (Math.random() * 0.5 + 0.25),
+        esCristal: esCristal
+      });
+    }
+
+    function animar() {
+      ctx.clearRect(0, 0, w, h);
+
+      for (let i = 0; i < copos.length; i++) {
+        const c = copos[i];
+        c.y += c.vy;
+        c.x += c.vx + Math.sin(c.y * 0.01) * 0.15;
+        c.angulo += c.vRot;
+
+        if (mouse.x !== null) {
+          const dx = c.x - mouse.x;
+          const dy = c.y - mouse.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 130 && dist > 0) {
+            c.x += (dx / dist) * 0.8;
+            c.y += (dy / dist) * 0.5;
+          }
+        }
+
+        if (c.y > h + 20) {
+          c.y = -20;
+          c.x = Math.random() * w;
+        }
+        if (c.x > w + 20) c.x = -20;
+        if (c.x < -20) c.x = w + 20;
+
+        if (c.esCristal) {
+          dibujarCopo(c.x, c.y, c.r, c.angulo, c.opacidad);
+        } else {
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(34, 211, 238, ${c.opacidad})`;
+          ctx.fill();
+        }
+      }
+      requestAnimationFrame(animar);
+    }
+    animar();
+  })();
+
   // Mostrar / ocultar contraseña
   const clave = document.getElementById('id_password');
   const ver = document.getElementById('ver-clave');
@@ -150,7 +256,7 @@
     if (e.key === 'Escape') document.querySelectorAll('.modal.abierto').forEach(m => m.classList.remove('abierto'));
   });
 
-   // Cuenta regresiva del bloqueo (el servidor es quien lo aplica de verdad)
+  // Cuenta regresiva del bloqueo
   (function () {
     const form = document.getElementById('form-login');
     let t = parseInt(form.dataset.bloqueado, 10) || 0;
