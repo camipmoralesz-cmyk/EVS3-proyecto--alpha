@@ -127,5 +127,69 @@ document.querySelectorAll('[data-add-formset]').forEach(function (boton) {
         totalFormsInput.value = nuevoIndice + 1;
     });
 });
+
+// Botón "Eliminar" de cada fila:
+// - Si la fila aún no está guardada en la base de datos (no tiene id) y hay
+//   más de una fila, o si está vacía, se quita o limpia al instante.
+// - Si la fila ya existe en la base de datos, marca la casilla DELETE oculta
+//   de Django para que se borre al presionar "Guardar Ficha".
+function reindexarFormset(container, prefix) {
+    const filas = Array.from(container.querySelectorAll('.formset-row'));
+    const patron = new RegExp(prefix + '-(\\d+|__prefix__)-', 'g');
+    filas.forEach(function (fila, idx) {
+        const reemplazo = prefix + '-' + idx + '-';
+        fila.querySelectorAll('[name], [id], label[for]').forEach(function (el) {
+            if (el.name) el.name = el.name.replace(patron, reemplazo);
+            if (el.id) el.id = el.id.replace(patron, reemplazo);
+            if (el.htmlFor) el.htmlFor = el.htmlFor.replace(patron, reemplazo);
+        });
+    });
+    const totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+    if (totalInput) totalInput.value = filas.length;
+}
+
+function marcarFilaEliminada(fila, eliminar) {
+    const idInput = fila.querySelector('input[type="hidden"][name$="-id"]');
+    const esNueva = !idInput || !idInput.value;
+    const card = fila.closest('[data-formset-prefix]');
+
+    if (eliminar && esNueva && card) {
+        const prefix = card.getAttribute('data-formset-prefix');
+        const container = document.getElementById('formset-container-' + prefix);
+        const filas = container.querySelectorAll('.formset-row');
+        if (filas.length > 1) {
+            fila.remove();
+            reindexarFormset(container, prefix);
+            return;
+        }
+        // Si es la única fila y es nueva, solo limpiamos sus campos en pantalla
+        fila.querySelectorAll('input[type="text"], input[type="email"], input[type="number"]').forEach(function (inp) {
+            inp.value = '';
+        });
+        fila.querySelectorAll('.text-danger.small.mt-1').forEach(function (err) {
+            err.remove();
+        });
+        return;
+    }
+
+    const casilla = fila.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    if (casilla) casilla.checked = eliminar;
+    fila.querySelector('.formset-row-contenido').classList.toggle('d-none', eliminar);
+    fila.querySelector('.formset-row-eliminada').classList.toggle('d-none', !eliminar);
+    fila.classList.toggle('opacity-75', eliminar);
+}
+
+document.addEventListener('click', function (evento) {
+    const botonEliminar = evento.target.closest('[data-eliminar-fila]');
+    const botonDeshacer = evento.target.closest('[data-deshacer-eliminar]');
+    if (botonEliminar) marcarFilaEliminada(botonEliminar.closest('.formset-row'), true);
+    if (botonDeshacer) marcarFilaEliminada(botonDeshacer.closest('.formset-row'), false);
+});
+
+// Si el formulario vuelve con errores, respeta las filas ya marcadas.
+document.querySelectorAll('.formset-row').forEach(function (fila) {
+    const casilla = fila.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    if (casilla && casilla.checked) marcarFilaEliminada(fila, true);
+});
 </script>
 {% endblock %}

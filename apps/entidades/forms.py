@@ -100,6 +100,24 @@ class CuentaForm(forms.ModelForm):
         return self.cleaned_data['numero_cuenta']
 
 
+class BaseContactoFormSet(BaseInlineFormSet):
+    def _construct_form(self, i, **kwargs):
+        form = super()._construct_form(i, **kwargs)
+        # Si la fila solo trae vacíos y el cargo por defecto (sin nombre, rut,
+        # email ni teléfono), se trata como fila extra vacía para que no bloquee
+        # el guardado pidiendo "Nombre *".
+        if self.is_bound and i >= self.initial_form_count():
+            prefijo = form.add_prefix
+            sin_datos = not any(
+                (self.data.get(prefijo(campo)) or '').strip()
+                for campo in ('nombre', 'rut', 'email', 'telefono')
+            )
+            if sin_datos:
+                form.empty_permitted = True
+                form.initial['cargo'] = self.data.get(prefijo('cargo'), form.initial.get('cargo'))
+        return form
+
+
 class BaseCuentaFormSet(BaseInlineFormSet):
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
@@ -110,6 +128,19 @@ class BaseCuentaFormSet(BaseInlineFormSet):
         kwargs['user'] = self.user
         return kwargs
 
+    def _construct_form(self, i, **kwargs):
+        form = super()._construct_form(i, **kwargs)
+        if self.is_bound and i >= self.initial_form_count():
+            prefijo = form.add_prefix
+            sin_datos = not any(
+                (self.data.get(prefijo(campo)) or '').strip()
+                for campo in ('banco', 'numero_cuenta', 'email_pago')
+            )
+            if sin_datos:
+                form.empty_permitted = True
+                form.initial['tipo_cuenta'] = self.data.get(prefijo('tipo_cuenta'), form.initial.get('tipo_cuenta'))
+        return form
+
 
 # Formsets inline: manejan "N contactos" y "N cuentas" de UNA ficha.
 # extra=1 -> muestra un formulario vacío para agregar uno nuevo.
@@ -118,6 +149,7 @@ ContactoFormSet = inlineformset_factory(
     Proveedor,
     ContactoEntidad,
     form=ContactoForm,
+    formset=BaseContactoFormSet,
     extra=1,
     can_delete=True,
 )

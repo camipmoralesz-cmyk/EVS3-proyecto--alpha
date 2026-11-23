@@ -1,14 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Proveedores y Mandantes{% endblock %}
+{% block title %}FYAG | Proveedores y Mandantes{% endblock %}
+{% block header_title %}Proveedores y Clientes{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-        <h3 class="fw-bold text-dark mb-0">
-            <i class="bi bi-building text-primary me-2"></i> Fichas de Proveedores y Mandantes
+        <h3 class="fw-bold text-light mb-0">
+            <i class="bi bi-building text-info me-2"></i> Fichas de Proveedores y Mandantes
         </h3>
-        <p class="text-muted small mb-0">Registro centralizado de datos tributarios, contactos por área y cuentas bancarias (HU-07)</p>
+        <p class="text-secondary small mb-0">Registro centralizado de datos tributarios, contactos por área y cuentas bancarias (HU-07)</p>
     </div>
     <div>
         <a href="{% url 'crear_entidad' %}" class="btn btn-primary btn-sm">
@@ -24,7 +25,7 @@
             <div class="col-md-6">
                 <label for="id_q" class="form-label small fw-semibold mb-1">Buscar por RUT, razón social o giro comercial</label>
                 <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
                     <input type="text" name="q" id="id_q" value="{{ q }}" class="form-control" placeholder="Ej: 76.543.210-3, Refrigeración, Agroindustria...">
                 </div>
             </div>
@@ -55,8 +56,8 @@
 <div class="card card-custom">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light small text-uppercase">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead class="small text-uppercase text-secondary">
                     <tr>
                         <th>RUT</th>
                         <th>Razón Social</th>
@@ -69,12 +70,12 @@
                 </thead>
                 <tbody>
                     {% for entidad in entidades %}
-                    <tr class="{% if not entidad.activo %}table-secondary text-muted{% endif %}">
-                        <td class="fw-bold font-monospace">{{ entidad.rut_formateado }}</td>
+                    <tr class="{% if not entidad.activo %}opacity-50{% endif %}">
+                        <td class="fw-bold font-monospace text-info">{{ entidad.rut_formateado }}</td>
                         <td>
                             <div class="fw-semibold">{{ entidad.razon_social }}</div>
                             {% if entidad.nombre_fantasia %}
-                                <div class="small text-muted">{{ entidad.nombre_fantasia }}</div>
+                                <div class="small text-secondary">{{ entidad.nombre_fantasia }}</div>
                             {% endif %}
                         </td>
                         <td>{{ entidad.giro|default:"-" }}</td>
@@ -97,7 +98,7 @@
                         </td>
                         <td class="text-end">
                             <div class="d-inline-flex gap-1">
-                                <a href="{% url 'editar_entidad' entidad.pk %}" class="btn btn-outline-primary btn-sm">
+                                <a href="{% url 'editar_entidad' entidad.pk %}" class="btn btn-outline-info btn-sm">
                                     <i class="bi bi-pencil-square me-1"></i> Editar
                                 </a>
                                 <form method="post" action="{% url 'cambiar_estado_entidad' entidad.pk %}" class="d-inline">
@@ -117,9 +118,9 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">
+                        <td colspan="7" class="text-center py-4 text-secondary">
                             No se encontraron fichas registradas.
-                            <a href="{% url 'crear_entidad' %}">Registrar primera ficha</a>
+                            <a href="{% url 'crear_entidad' %}" class="text-info">Registrar primera ficha</a>
                         </td>
                     </tr>
                     {% endfor %}

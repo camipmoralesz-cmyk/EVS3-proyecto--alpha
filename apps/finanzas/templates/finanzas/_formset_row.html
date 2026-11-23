@@ -3,34 +3,45 @@
         {{ hidden }}
     {% endfor %}
 
-    {% if subform.non_field_errors %}
-        <div class="alert alert-danger py-1 small mb-2">
-            {{ subform.non_field_errors }}
-        </div>
-    {% endif %}
+    <!-- Aviso que se muestra cuando la fila queda marcada para eliminar -->
+    <div class="formset-row-eliminada d-none d-flex justify-content-between align-items-center">
+        <span class="small text-danger">
+            <i class="bi bi-trash me-1"></i> Fila marcada para eliminar. Se borrará al presionar <strong>Guardar Ficha</strong>.
+        </span>
+        <button type="button" class="btn btn-sm btn-outline-light" data-deshacer-eliminar>
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Deshacer
+        </button>
+    </div>
 
-    <div class="row g-2 align-items-end">
-        {% for field in subform.visible_fields %}
-            {% if field.name == 'DELETE' %}
-                <div class="col-md-2">
-                    <div class="form-check mt-3">
-                        {{ field }}
-                        <label class="form-check-label small text-danger" for="{{ field.id_for_label }}">
-                            Eliminar
-                        </label>
+    <div class="formset-row-contenido">
+        {% if subform.non_field_errors %}
+            <div class="alert alert-danger py-1 small mb-2">
+                {{ subform.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <div class="row g-2 align-items-end">
+            {% for field in subform.visible_fields %}
+                {% if field.name == 'DELETE' %}
+                    <div class="col-md-auto">
+                        <!-- La casilla real de Django queda oculta; el botón la marca -->
+                        <span class="d-none">{{ field }}</span>
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-eliminar-fila title="Eliminar">
+                            <i class="bi bi-trash me-1"></i> Eliminar
+                        </button>
                     </div>
-                </div>
-            {% else %}
-                <div class="col-md">
-                    <label class="form-label small fw-semibold mb-1" for="{{ field.id_for_label }}">
-                        {{ field.label }}{% if field.field.required %} *{% endif %}
-                    </label>
-                    {{ field }}
-                    {% if field.errors %}
-                        <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
-                    {% endif %}
-                </div>
-            {% endif %}
-        {% endfor %}
+                {% else %}
+                    <div class="col-md">
+                        <label class="form-label small fw-semibold mb-1" for="{{ field.id_for_label }}">
+                            {{ field.label }}{% if field.field.required %} *{% endif %}
+                        </label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
     </div>
 </div>
