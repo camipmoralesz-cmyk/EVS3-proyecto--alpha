@@ -31,8 +31,11 @@
                     <thead>
                         <tr class="text-secondary small text-uppercase">
                             <th>Nombre de la Obra</th>
+                            <th>Tipo de Servicio</th>
                             <th>Cliente Mandante</th>
+                            <th>Responsable</th>
                             <th class="text-center">Presupuesto Total</th>
+                            <th class="text-center">Resultado</th>
                             <th class="text-center">Estado</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -40,9 +43,21 @@
                     <tbody>
                         {% for obra in obras %}
                         <tr>
-                            <td class="fw-semibold text-white">{{ obra.nombre }}</td>
+                            <td class="fw-semibold text-white">
+                                {{ obra.nombre }}
+                                {% if obra.numero_presupuesto %}<div class="small text-secondary font-monospace">{{ obra.numero_presupuesto }}</div>{% endif %}
+                            </td>
+                            <td class="small">{{ obra.get_tipo_servicio_display }}</td>
                             <td>{{ obra.mandante.razon_social }}</td>
-                            <td class="text-center font-monospace text-success">$ {{ obra.presupuesto_total|floatformat:0 }}</td>
+                            <td class="small">{% if obra.supervisor %}{{ obra.supervisor.get_full_name|default:obra.supervisor.username }}{% else %}<span class="text-secondary">Sin asignar</span>{% endif %}</td>
+                            <td class="text-center font-monospace text-success">$ {{ obra.presupuesto_total|default:0|floatformat:0 }}</td>
+                            <td class="text-center">
+                                {% if obra.es_rentable %}
+                                    <span class="badge bg-success">RENTABLE (+${{ obra.utilidad_absoluta|floatformat:0 }})</span>
+                                {% else %}
+                                    <span class="badge bg-danger">EN PÉRDIDA (-${{ obra.utilidad_absoluta|floatformat:0 }})</span>
+                                {% endif %}
+                            </td>
                             <td class="text-center">
                                 <span class="badge {% if obra.estado == 'ACTIVA' %}bg-success{% else %}bg-secondary{% endif %}">
                                     {{ obra.get_estado_display }}
@@ -56,7 +71,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="text-center text-secondary py-4">
+                            <td colspan="8" class="text-center text-secondary py-4">
                                 No tiene obras asignadas actualmente en el sistema.
                             </td>
                         </tr>

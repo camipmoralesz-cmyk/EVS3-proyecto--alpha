@@ -26,8 +26,8 @@
                     <label class="form-label text-secondary small text-uppercase">Obra Asignada</label>
                     <select name="obra" class="form-select bg-dark text-light border-secondary" required>
                         <option value="">Seleccione obra...</option>
-                        {% for ob in obras %}
-                            <option value="{{ ob.id }}">{{ ob.nombre }}</option>
+                        {% for ob in obras %}{% if ob.estado == 'ACTIVA' %}
+                            <option value="{{ ob.id }}">{{ ob.nombre }}</option>{% endif %}
                         {% endfor %}
                     </select>
                 </div>
@@ -57,40 +57,67 @@
         </div>
     </div>
 
-    <!-- Tabla de Solicitudes -->
+    <!-- Pedidos en Bodega con su estado real -->
     <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
         <div class="card-header text-white fw-bold d-flex justify-content-between align-items-center">
-            <span>HISTORIAL DE SOLICITUDES DE MIS OBRAS</span>
-            <span class="badge bg-dark border border-info text-info">{{ solicitudes.count }} Registros</span>
+            <span>HISTORIAL DE PEDIDOS DE MIS OBRAS (ESTADO EN BODEGA)</span>
+            <span class="badge bg-dark border border-info text-info">{{ despachos|length }} Registros</span>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-dark table-hover align-middle mb-0">
                     <thead>
                         <tr class="text-secondary small text-uppercase">
-                            <th>ID</th>
+                            <th>N° Pedido</th>
                             <th>Obra</th>
-                            <th>Material Solicitado</th>
-                            <th class="text-center">Cantidad</th>
-                            <th class="text-center">Estado Bodega</th>
+                            <th>Materiales</th>
+                            <th>Sector</th>
+                            <th class="text-center">Estado en Bodega</th>
+                            <th>Detalle Bodega</th>
+                            <th class="text-end">Fecha</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for sol in solicitudes %}
+                        {% for sol in despachos %}
                         <tr>
-                            <td><code>#{{ sol.id }}</code></td>
+                            <td><code>#{{ sol.pk }}</code></td>
                             <td class="fw-semibold text-white">{{ sol.obra.nombre }}</td>
-                            <td>{{ sol.articulo }}</td>
-                            <td class="text-center fw-bold text-info">{{ sol.cantidad }}</td>
-                            <td class="text-center">
-                                <span class="badge {% if sol.estado == 'DESPACHADA' or sol.estado == 'COMPLETADA' %}bg-primary{% else %}bg-warning text-dark{% endif %}">
-                                    {{ sol.get_estado_display|default:sol.estado }}
-                                </span>
+                            <td class="small">
+                                {% for det in sol.detalles.all %}
+                                    <div>{{ det.articulo.nombre }} <span class="text-info fw-bold">x {{ det.cantidad|floatformat:"-2" }}</span></div>
+                                {% endfor %}
                             </td>
+                            <td class="small text-secondary">{{ sol.observaciones|default:"-" }}</td>
+                            <td class="text-center">
+                                {% if sol.estado == 'DESPACHADA' %}
+                                    <span class="badge bg-success">Despachada</span>
+                                {% elif sol.estado == 'RECHAZADA' %}
+                                    <span class="badge bg-danger">Rechazada</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                {% if sol.estado == 'RECHAZADA' %}
+                                    <span class="text-danger">{{ sol.motivo_rechazo|default:"Sin motivo informado" }}</span>
+                                {% elif sol.estado == 'DESPACHADA' %}
+                                    {% if puede_ver_vale %}
+                                        <a href="{% url 'comprobante_despacho' sol.despacho.pk %}" class="btn btn-sm btn-outline-info">
+                                            <i class="bi bi-receipt me-1"></i> Vale #{{ sol.despacho.pk }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-info"><i class="bi bi-receipt me-1"></i>Vale de salida #{{ sol.despacho.pk }}</span>
+                                    {% endif %}
+                                    <div class="text-secondary" style="font-size: 0.75rem;">Recibió: {{ sol.despacho.tecnico.get_full_name|default:sol.despacho.tecnico.username }}</div>
+                                {% else %}
+                                    <span class="text-secondary">En espera de Bodega</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end text-secondary small">{{ sol.fecha_solicitud|date:"d/m/Y H:i" }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="text-center text-secondary py-4">No has registrado solicitudes de materiales aún.</td>
+                            <td colspan="7" class="text-center text-secondary py-4">No hay pedidos de materiales registrados en Bodega.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

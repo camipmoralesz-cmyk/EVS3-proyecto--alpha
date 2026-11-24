@@ -12,7 +12,7 @@
             <i class="bi bi-calculator text-info me-2"></i> Presupuestos de Obras
         </h3>
         <p class="text-secondary small mb-0">
-            Crea obras y administra el presupuesto total asignado a cada faena.
+            Crea obras, administra su presupuesto y evalúa si cada proyecto da ganancia o pérdida.
         </p>
     </div>
     <div class="d-flex align-items-center gap-3 flex-wrap">
@@ -68,9 +68,16 @@
                 <thead class="small text-uppercase text-secondary">
                     <tr>
                         <th>Obra / Faena</th>
+                        <th>Tipo de Servicio / N° Presupuesto</th>
                         <th>Cliente Mandante</th>
                         <th class="text-center">Estado</th>
-                        <th class="text-end">Presupuesto Total (CLP)</th>
+                        <th class="text-end">Presupuesto Cliente ($)</th>
+                        <th class="text-end">Costo Materiales ($)</th>
+                        <th class="text-end">Costo Mano de Obra ($)</th>
+                        <th class="text-end">Costo Total Real ($)</th>
+                        <th class="text-end">Resultado / Utilidad ($)</th>
+                        <th class="text-center">Margen Real (%)</th>
+                        <th class="text-center">Viabilidad</th>
                         <th class="text-end">Acciones</th>
                     </tr>
                 </thead>
@@ -78,6 +85,10 @@
                     {% for obra in obras %}
                     <tr>
                         <td class="fw-semibold">{{ obra.nombre }}</td>
+                        <td class="small">
+                            <div>{{ obra.get_tipo_servicio_display }}</div>
+                            <div class="font-monospace text-secondary">{{ obra.numero_presupuesto|default:"Sin N°" }}</div>
+                        </td>
                         <td>
                             <div>{{ obra.mandante.razon_social }}</div>
                             <div class="small font-monospace text-info">{{ obra.mandante.rut_formateado }}</div>
@@ -98,6 +109,24 @@
                                 <span class="text-secondary">Sin presupuesto</span>
                             {% endif %}
                         </td>
+                        <td class="text-end font-monospace">{{ obra.costo_materiales|floatformat:0 }}</td>
+                        <td class="text-end font-monospace">
+                            {{ obra.costo_mano_obra_real|floatformat:0 }}
+                            <div class="text-secondary" style="font-size: 0.72rem;">{{ obra.total_horas_trabajadas|floatformat:"-2" }} h × ${{ obra.tarifa_hora_mano_obra|floatformat:0 }} + base</div>
+                        </td>
+                        <td class="text-end font-monospace text-warning">{{ obra.costo_total_real|floatformat:0 }}</td>
+                        <td class="text-end font-monospace fw-bold {% if obra.es_rentable %}text-success{% else %}text-danger{% endif %}">{{ obra.utilidad_actual|floatformat:0 }}</td>
+                        <td class="text-center {% if obra.es_rentable %}text-success{% else %}text-danger{% endif %}">
+                            {{ obra.margen_real_porcentaje }} %
+                            <div class="text-secondary" style="font-size: 0.72rem;">Esperado {{ obra.margen_esperado_porcentaje|floatformat:1 }} %</div>
+                        </td>
+                        <td class="text-center">
+                            {% if obra.es_rentable %}
+                                <span class="badge bg-success">RENTABLE (+${{ obra.utilidad_absoluta|floatformat:0 }})</span>
+                            {% else %}
+                                <span class="badge bg-danger">EN PÉRDIDA / SOBRECOSTO (-${{ obra.utilidad_absoluta|floatformat:0 }})</span>
+                            {% endif %}
+                        </td>
                         <td class="text-end">
                             <div class="d-inline-flex gap-1">
                                 <a href="{% url 'finanzas:presupuesto_editar' obra.pk %}" class="btn btn-outline-info btn-sm">
@@ -113,7 +142,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center py-4 text-secondary">
+                        <td colspan="12" class="text-center py-4 text-secondary">
                             No hay obras registradas en el sistema.
                         </td>
                     </tr>

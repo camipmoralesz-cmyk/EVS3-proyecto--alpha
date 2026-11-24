@@ -612,7 +612,7 @@ def lista_presupuestos_finanzas(request):
     q = request.GET.get('q', '').strip()
     estado = request.GET.get('estado', '').strip()
 
-    obras = Obra.objects.select_related('mandante').all()
+    obras = Obra.objects.select_related('mandante', 'supervisor').all()
 
     if estado in Obra.Estado.values:
         obras = obras.filter(estado=estado)
@@ -660,11 +660,10 @@ def editar_presupuesto_finanzas(request, pk):
     if request.method == 'POST':
         form = PresupuestoObraForm(request.POST, instance=obra)
         if form.is_valid():
-            obra.presupuesto_total = form.cleaned_data['presupuesto_total']
-            obra.save(update_fields=['presupuesto_total'])
-            messages.success(request, f"Presupuesto de la obra '{obra.nombre}' actualizado.")
+            form.save()
+            messages.success(request, f"Presupuesto y datos de rentabilidad de la obra '{obra.nombre}' actualizados.")
             return redirect('finanzas:presupuestos_lista')
-        messages.error(request, "Por favor corrige los errores en el monto del presupuesto.")
+        messages.error(request, "Por favor corrige los errores del presupuesto.")
     else:
         form = PresupuestoObraForm(instance=obra)
 

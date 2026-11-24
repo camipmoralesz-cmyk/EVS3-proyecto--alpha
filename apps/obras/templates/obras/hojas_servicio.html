@@ -35,6 +35,15 @@
                     <label class="form-label text-secondary small text-uppercase">Sector o Ubicación de Faena</label>
                     <input type="text" name="sector" placeholder="Ej: Cámara Frigorífica N°2 - Sector Norte" class="form-control bg-dark text-light border-secondary" required>
                 </div>
+                <div class="col-md-7">
+                    <label class="form-label text-secondary small text-uppercase">Técnico Responsable</label>
+                    <input type="text" name="tecnico_responsable" maxlength="120" placeholder="Por defecto: tu nombre de usuario" class="form-control bg-dark text-light border-secondary">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label text-secondary small text-uppercase">Horas Hombre Invertidas</label>
+                    <input type="number" name="horas_invertidas" min="0.25" step="0.25" value="1" class="form-control bg-dark text-light border-secondary" required>
+                    <div class="form-text text-secondary">Se valorizan con la tarifa hora de la obra (costo de mano de obra).</div>
+                </div>
                 <div class="col-12">
                     <label class="form-label text-secondary small text-uppercase">Detalle del Trabajo / Servicio Ejecutado</label>
                     <textarea name="descripcion" rows="2" placeholder="Describe las labores técnicas realizadas en terreno..." class="form-control bg-dark text-light border-secondary" required></textarea>
@@ -61,7 +70,9 @@
                         <tr class="text-secondary small text-uppercase">
                             <th>N° Hoja</th>
                             <th>Obra</th>
+                            <th>Técnico</th>
                             <th>Detalle / Registro</th>
+                            <th class="text-center">Horas</th>
                             <th class="text-end">Fecha</th>
                         </tr>
                     </thead>
@@ -70,12 +81,14 @@
                         <tr>
                             <td><code>#{{ hoja.id }}</code></td>
                             <td class="fw-semibold text-white">{{ hoja.obra.nombre }}</td>
-                            <td>{{ hoja }}</td>
-                            <td class="text-end text-secondary small">{{ hoja.fecha|date:"d/m/Y H:i"|default:"Registrada" }}</td>
+                            <td>{{ hoja.tecnico_responsable }}</td>
+                            <td class="small">{{ hoja.descripcion_trabajo }}</td>
+                            <td class="text-center fw-bold text-info">{{ hoja.horas_invertidas|floatformat:"-2" }}</td>
+                            <td class="text-end text-secondary small">{{ hoja.fecha_servicio|date:"d/m/Y" }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="4" class="text-center text-secondary py-4">No hay hojas de servicio registradas para tus obras.</td>
+                            <td colspan="6" class="text-center text-secondary py-4">No hay hojas de servicio registradas para tus obras.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

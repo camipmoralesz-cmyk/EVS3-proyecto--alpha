@@ -34,6 +34,26 @@
                 <div class="card-body">
                     <div class="row mb-3">
                         <div class="col-md-6">
+                            <span class="text-secondary small d-block">Tipo de Servicio</span>
+                            <span class="text-white fw-semibold">{{ obra.get_tipo_servicio_display }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-secondary small d-block">N° Presupuesto</span>
+                            <span class="text-white font-monospace">{{ obra.numero_presupuesto|default:"Sin N° asignado" }}</span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <span class="text-secondary small d-block">Supervisor / Técnico responsable</span>
+                            <span class="text-white">{% if obra.supervisor %}{{ obra.supervisor.get_full_name|default:obra.supervisor.username }}{% else %}Sin responsable asignado{% endif %}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-secondary small d-block">Margen Esperado</span>
+                            <span class="text-white">{{ obra.margen_esperado_porcentaje|floatformat:1 }} %</span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
                             <span class="text-secondary small d-block">Presupuesto Asignado</span>
                             <span class="fs-5 fw-bold font-monospace text-success">$ {{ obra.presupuesto_total|floatformat:0 }}</span>
                         </div>
@@ -77,44 +97,107 @@
         </div>
     </div>
 
-    <!-- Tabla de Solicitudes de Materiales -->
+    <!-- Evaluación de rentabilidad del proyecto -->
+    <div class="card border-{% if obra.es_rentable %}success{% else %}danger{% endif %} border-opacity-50 mb-4" style="background-color: #1a1d21;">
+        <div class="card-header text-white fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span><i class="bi bi-graph-up-arrow me-1"></i> EVALUACIÓN FINANCIERA DEL PROYECTO</span>
+            {% if obra.es_rentable %}
+                <span class="badge bg-success fs-6">RENTABLE (+${{ obra.utilidad_absoluta|floatformat:0 }})</span>
+            {% else %}
+                <span class="badge bg-danger fs-6">EN PÉRDIDA / SOBRECOSTO (-${{ obra.utilidad_absoluta|floatformat:0 }})</span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <div class="row g-3 text-center">
+                <div class="col-6 col-lg-2">
+                    <div class="text-secondary small">Presupuesto Cliente ($)</div>
+                    <div class="fs-5 fw-bold font-monospace text-info">{{ obra.presupuesto_total|default:0|floatformat:0 }}</div>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <div class="text-secondary small">Costo Materiales ($)</div>
+                    <div class="fs-5 fw-bold font-monospace text-white">{{ obra.costo_materiales|floatformat:0 }}</div>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <div class="text-secondary small">Costo Mano de Obra ($)</div>
+                    <div class="fs-5 fw-bold font-monospace text-white">{{ obra.costo_mano_obra_real|floatformat:0 }}</div>
+                    <div class="text-secondary" style="font-size: 0.72rem;">{{ obra.total_horas_trabajadas|floatformat:"-2" }} h × ${{ obra.tarifa_hora_mano_obra|floatformat:0 }} + base ${{ obra.costo_mano_obra_estimado|floatformat:0 }}</div>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <div class="text-secondary small">Costo Total Real ($)</div>
+                    <div class="fs-5 fw-bold font-monospace text-warning">{{ obra.costo_total_real|floatformat:0 }}</div>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <div class="text-secondary small">Resultado / Utilidad ($)</div>
+                    <div class="fs-5 fw-bold font-monospace {% if obra.es_rentable %}text-success{% else %}text-danger{% endif %}">{{ obra.utilidad_actual|floatformat:0 }}</div>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <div class="text-secondary small">Margen de Ganancia Real (%)</div>
+                    <div class="fs-5 fw-bold font-monospace {% if obra.es_rentable %}text-success{% else %}text-danger{% endif %}">{{ obra.margen_real_porcentaje }} %</div>
+                    <div class="text-secondary" style="font-size: 0.72rem;">Esperado: {{ obra.margen_esperado_porcentaje|floatformat:1 }} %</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pedidos de materiales a Bodega con su estado real -->
     <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
         <div class="card-header text-white fw-bold d-flex justify-content-between align-items-center">
             <span>SOLICITUDES DE MATERIALES A BODEGA</span>
-            <span class="badge bg-dark border border-secondary text-info">{{ solicitudes.count }} Solicitudes</span>
+            <span class="badge bg-dark border border-secondary text-info">{{ despachos|length }} Solicitudes</span>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-dark table-hover align-middle mb-0">
                     <thead>
                         <tr class="text-secondary small text-uppercase">
-                            <th>ID</th>
-                            <th>Insumo / Artículo</th>
-                            <th class="text-center">Cantidad</th>
-                            <th class="text-center">Estado de Solicitud</th>
-                            <th>Solicitado por</th>
+                            <th>N° Pedido</th>
+                            <th>Materiales</th>
+                            <th>Sector</th>
+                            <th class="text-center">Estado en Bodega</th>
+                            <th>Detalle Bodega</th>
                             <th class="text-end">Fecha</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for sol in solicitudes %}
+                        {% for sol in despachos %}
                         <tr>
-                            <td><code>#{{ sol.id }}</code></td>
-                            <td class="fw-semibold text-white">{{ sol.articulo.nombre }}</td>
-                            <td class="text-center fw-bold">{{ sol.cantidad }}</td>
-                            <td class="text-center">
-                                <span class="badge {% if sol.estado == 'PENDIENTE' %}bg-warning text-dark{% else %}bg-success{% endif %}">
-                                    {{ sol.get_estado_display }}
-                                </span>
+                            <td><code>#{{ sol.pk }}</code></td>
+                            <td class="small">
+                                {% for det in sol.detalles.all %}
+                                    <div>{{ det.articulo.nombre }} <span class="text-info fw-bold">x {{ det.cantidad|floatformat:"-2" }}</span></div>
+                                {% endfor %}
                             </td>
-                            <td>{{ sol.solicitado_por.username }}</td>
+                            <td class="small text-secondary">{{ sol.observaciones|default:"-" }}</td>
+                            <td class="text-center">
+                                {% if sol.estado == 'DESPACHADA' %}
+                                    <span class="badge bg-success">Despachada</span>
+                                {% elif sol.estado == 'RECHAZADA' %}
+                                    <span class="badge bg-danger">Rechazada</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                {% if sol.estado == 'RECHAZADA' %}
+                                    <span class="text-danger">{{ sol.motivo_rechazo|default:"Sin motivo informado" }}</span>
+                                {% elif sol.estado == 'DESPACHADA' %}
+                                    {% if puede_ver_vale %}
+                                        <a href="{% url 'comprobante_despacho' sol.despacho.pk %}" class="btn btn-sm btn-outline-info">
+                                            <i class="bi bi-receipt me-1"></i> Vale #{{ sol.despacho.pk }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-info"><i class="bi bi-receipt me-1"></i>Vale de salida #{{ sol.despacho.pk }}</span>
+                                    {% endif %}
+                                    <div class="text-secondary" style="font-size: 0.75rem;">Recibió: {{ sol.despacho.tecnico.get_full_name|default:sol.despacho.tecnico.username }}</div>
+                                {% else %}
+                                    <span class="text-secondary">En espera de Bodega</span>
+                                {% endif %}
+                            </td>
                             <td class="text-end text-secondary small">{{ sol.fecha_solicitud|date:"d/m/Y H:i" }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="text-center text-secondary py-4">
-                                No hay solicitudes de materiales registradas para esta obra.
-                            </td>
+                            <td colspan="6" class="text-center text-secondary py-4">No hay pedidos de materiales registrados en Bodega.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
