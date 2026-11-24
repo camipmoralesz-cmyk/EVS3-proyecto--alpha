@@ -4,6 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Iniciar sesión · Proyecto Alpha</title>
+  <script>
+    // Accesibilidad: aplica tema y tamaño de letra guardados antes de pintar
+    (function () {
+      var raiz = document.documentElement, tema = 'oscuro', letra = 'md';
+      try { tema = localStorage.getItem('fyag_tema') || 'oscuro'; letra = localStorage.getItem('fyag_letra') || 'md'; } catch (e) {}
+      raiz.style.fontSize = ({ sm: '14px', md: '16px', lg: '18.5px' })[letra] || '16px';
+      raiz.setAttribute('data-tema', tema);
+    })();
+  </script>
   <style>
     :root{--fondo:#020617;--panel:#0f172a;--borde:#1e293b;--texto:#e2e8f0;--suave:#94a3b8;--cian:#06b6d4;--cian-claro:#22d3ee;--rojo:#fb7185}
     *{box-sizing:border-box}
@@ -49,11 +58,60 @@
     footer{background:rgba(15,23,42,.92);border-top:1px solid var(--borde);padding:.8rem 1rem;font-size:.75rem;color:var(--suave);display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;justify-content:space-between}
     @media(prefers-reduced-motion:no-preference){.alerta{animation:sacudir .4s ease-in-out}}
     @keyframes sacudir{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+    /* Barra flotante de accesibilidad */
+    .accesibilidad{position:fixed;top:.75rem;right:.75rem;z-index:20;display:flex;flex-wrap:wrap;gap:.35rem;background:rgba(15,23,42,.92);border:1px solid var(--borde);border-radius:.6rem;padding:.3rem}
+    .accesibilidad div{display:flex}
+    .accesibilidad button{background:transparent;color:var(--texto);border:1px solid var(--borde);padding:.25rem .5rem;font-size:.75rem;cursor:pointer;min-width:2rem}
+    .accesibilidad div button:first-child{border-radius:.4rem 0 0 .4rem}
+    .accesibilidad div button:last-child{border-radius:0 .4rem .4rem 0}
+    .accesibilidad button[aria-pressed="true"]{background:var(--cian);color:#042f3a;border-color:var(--cian);font-weight:700}
+    .aviso{border-radius:.6rem;padding:.8rem;font-size:.85rem;margin-bottom:1rem;border:1px solid rgba(6,182,212,.5);background:rgba(8,51,68,.6);color:#cffafe}
+    /* Tema claro */
+    html[data-tema="claro"]{--fondo:#ffffff;--panel:#ffffff;--borde:#cbd5e1;--texto:#0f172a;--suave:#475569;--cian:#0e7490;--cian-claro:#0e7490;--rojo:#be123c}
+    html[data-tema="claro"] body{background:linear-gradient(160deg,#e0f2fe 0%,#f8fafc 70%)}
+    html[data-tema="claro"] .tarjeta,html[data-tema="claro"] .datos div,html[data-tema="claro"] footer,html[data-tema="claro"] .accesibilidad{background:rgba(255,255,255,.95)}
+    html[data-tema="claro"] label{color:#334155}
+    html[data-tema="claro"] .entrar{color:#ffffff}
+    html[data-tema="claro"] .alerta{background:#fff1f2;color:#881337}
+    html[data-tema="claro"] .aviso{background:#ecfeff;color:#164e63}
+    html[data-tema="claro"] .modal-clave>div{background:#ecfeff;border-color:#0e7490}
+    html[data-tema="claro"] .modal-clave h3,html[data-tema="claro"] .modal-clave p{color:#164e63;background:transparent}
+    html[data-tema="claro"] .modal button.cerrar{background:#0e7490;color:#fff}
+    /* Alto contraste */
+    html[data-tema="alto"]{--fondo:#000000;--panel:#000000;--borde:#fde047;--texto:#ffffff;--suave:#ffffff;--cian:#fde047;--cian-claro:#fde047;--rojo:#fde047}
+    html[data-tema="alto"] body{background:#000000}
+    html[data-tema="alto"] #fondo-hielo{display:none}
+    html[data-tema="alto"] .tarjeta,html[data-tema="alto"] .datos div,html[data-tema="alto"] footer,html[data-tema="alto"] .accesibilidad,html[data-tema="alto"] .modal>div{background:#000000;border:2px solid #fde047}
+    html[data-tema="alto"] label{color:#ffffff}
+    html[data-tema="alto"] .entrar{background:#fde047;color:#000000}
+    html[data-tema="alto"] .alerta,html[data-tema="alto"] .aviso{background:#000000;color:#ffffff;border:2px solid #fde047}
+    html[data-tema="alto"] .modal-clave h3,html[data-tema="alto"] .modal-clave p{color:#ffffff;background:#000000}
+    html[data-tema="alto"] .modal button.cerrar{background:#fde047;color:#000000}
+    html[data-tema="alto"] .enlace{text-decoration:underline}
+    html[data-tema="alto"] input:focus,html[data-tema="alto"] button:focus-visible{outline:3px solid #fde047}
   </style>
 </head>
 <body>
 
 <canvas id="fondo-hielo"></canvas>
+
+<!-- Accesibilidad: tamaño de letra, contraste e idioma -->
+<div class="accesibilidad" role="toolbar" aria-label="Accesibilidad">
+  <div role="group" aria-label="Tamaño de letra" data-i18n-attr="aria-label">
+    <button type="button" data-letra="sm" title="Letra más pequeña" data-i18n-attr="title">A-</button>
+    <button type="button" data-letra="md" title="Letra normal" data-i18n-attr="title">A</button>
+    <button type="button" data-letra="lg" title="Letra más grande" data-i18n-attr="title">A+</button>
+  </div>
+  <div role="group" aria-label="Contraste de colores" data-i18n-attr="aria-label">
+    <button type="button" data-tema-opcion="oscuro">Oscuro</button>
+    <button type="button" data-tema-opcion="claro">Claro</button>
+    <button type="button" data-tema-opcion="alto">Alto Contraste</button>
+  </div>
+  <div role="group" aria-label="Idioma" data-i18n-attr="aria-label">
+    <button type="button" data-idioma="es" lang="es">ES</button>
+    <button type="button" data-idioma="en" lang="en">EN</button>
+  </div>
+</div>
 
 <main>
   <section class="marca">
@@ -68,6 +126,8 @@
   <section class="tarjeta">
     <h2>Inicia tu sesión</h2>
     <p class="sub">Ingresa tus credenciales corporativas.</p>
+
+    <div class="aviso" id="aviso-inactividad" role="status" hidden>Tu sesión se cerró por inactividad (10 minutos). Vuelve a ingresar para continuar.</div>
 
     {% if bloqueado %}
       <div class="alerta" role="alert">
@@ -239,6 +299,7 @@
     const oculta = clave.type === 'password';
     clave.type = oculta ? 'text' : 'password';
     ver.textContent = oculta ? 'Ocultar' : 'Mostrar';
+    window.fyagTraducir && window.fyagTraducir(ver);
   });
 
   // Modales
@@ -250,6 +311,110 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') document.querySelectorAll('.modal.abierto').forEach(m => m.classList.remove('abierto'));
   });
+
+  // Accesibilidad: tamaño de letra, contraste e idioma (preferencias compartidas con el sistema)
+  (function () {
+    const raiz = document.documentElement;
+    const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+    const leer = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+    const TAMANOS = { sm: '14px', md: '16px', lg: '18.5px' };
+    // Las claves del diccionario van normalizadas (minúsculas, sin tildes):
+    // la comparación no depende de mayúsculas ni acentos.
+    const clave = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const EN = {
+      'sistema de gestion logistica, control de inventario y trazabilidad operacional.': 'Logistics management, inventory control and operational traceability system.',
+      'acceso segun perfil ✔️': 'Role-based access ✔️',
+      'trazabilidad ✔️': 'Traceability ✔️',
+      'inicia tu sesion': 'Sign in',
+      'ingresa tus credenciales corporativas.': 'Enter your corporate credentials.',
+      'nombre de usuario o correo': 'Username or email',
+      'contrasena': 'Password',
+      'mostrar': 'Show',
+      'ocultar': 'Hide',
+      'mostrar u ocultar contrasena': 'Show or hide password',
+      'recordarme en este equipo': 'Remember me on this device',
+      '¿olvidaste tu contrasena?': 'Forgot your password?',
+      'entrar al sistema': 'Sign in to the system',
+      '¿necesitas un perfil nuevo?': 'Need a new profile?',
+      'pidelo al administrador': 'Ask the administrator',
+      '¡ups!': 'Oops!',
+      'la contrasena o el usuario no son validos. revisa los datos e intentalo de nuevo.': 'The username or password is invalid. Check your details and try again.',
+      'entendido': 'Got it',
+      'soporte ti': 'IT Support',
+      'para recuperar tu contrasena o solicitar un perfil, escribe a soporte con tu nombre y el rol que necesitas.': 'To recover your password or request a profile, email support with your name and the role you need.',
+      'cerrar': 'Close',
+      'cuenta bloqueada temporalmente': 'Account temporarily locked',
+      'superaste el limite de intentos fallidos. espera': 'You exceeded the failed attempt limit. Wait',
+      'segundos.': 'seconds.',
+      'usuario o contrasena incorrectos.': 'Incorrect username or password.',
+      'tu cuenta no tiene permisos ni un rol asignado.': 'Your account has no permissions or assigned role.',
+      'tu sesion se cerro por inactividad (10 minutos). vuelve a ingresar para continuar.': 'Your session was closed due to inactivity (10 minutes). Sign in again to continue.',
+      'oscuro': 'Dark',
+      'claro': 'Light',
+      'alto contraste': 'High Contrast',
+      'letra mas pequena': 'Smaller text',
+      'letra normal': 'Normal text',
+      'letra mas grande': 'Larger text',
+      'tamano de letra': 'Text size',
+      'contraste de colores': 'Color contrast',
+      'idioma': 'Language',
+    };
+    let idioma = leer('fyag_idioma', 'es');
+
+    function traducirNodo(nodo) {
+      const texto = nodo.nodeValue.trim();
+      if (!texto) return;
+      const original = nodo.__fyagEs || texto;
+      const destino = idioma === 'en' ? EN[clave(original)] : original;
+      if (!destino || destino === texto) return;
+      nodo.__fyagEs = original;
+      nodo.nodeValue = nodo.nodeValue.replace(texto, destino);
+    }
+
+    function traducir(raizDom) {
+      const recorrido = document.createTreeWalker(raizDom, NodeFilter.SHOW_TEXT, {
+        acceptNode: n => (n.parentElement && ['SCRIPT', 'STYLE'].includes(n.parentElement.tagName)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+      });
+      let n;
+      while ((n = recorrido.nextNode())) traducirNodo(n);
+      const conAtributos = raizDom.querySelectorAll ? raizDom.querySelectorAll('[data-i18n-attr], [aria-label]') : [];
+      conAtributos.forEach(el => {
+        (el.dataset.i18nAttr || 'aria-label').split(',').forEach(attr => {
+          const claveDato = 'i18nOriginal' + attr.replace(/[^a-z]/gi, '');
+          if (!el.dataset[claveDato]) el.dataset[claveDato] = el.getAttribute(attr) || '';
+          const original = el.dataset[claveDato];
+          el.setAttribute(attr, idioma === 'en' ? (EN[clave(original)] || original) : original);
+        });
+      });
+    }
+    window.fyagTraducir = traducir;
+
+    function marcar(selector, campo, valor) {
+      document.querySelectorAll(selector).forEach(b => b.setAttribute('aria-pressed', String(b.dataset[campo] === valor)));
+    }
+    function aplicarLetra(v) { raiz.style.fontSize = TAMANOS[v] || TAMANOS.md; guardar('fyag_letra', v); marcar('[data-letra]', 'letra', v); }
+    function aplicarTema(v) { raiz.setAttribute('data-tema', v); guardar('fyag_tema', v); marcar('[data-tema-opcion]', 'temaOpcion', v); }
+    function aplicarIdioma(v) {
+      idioma = v; raiz.setAttribute('lang', v); guardar('fyag_idioma', v); marcar('[data-idioma]', 'idioma', v);
+      traducir(document.body);
+    }
+
+    document.querySelectorAll('[data-letra]').forEach(b => b.addEventListener('click', () => aplicarLetra(b.dataset.letra)));
+    document.querySelectorAll('[data-tema-opcion]').forEach(b => b.addEventListener('click', () => aplicarTema(b.dataset.temaOpcion)));
+    document.querySelectorAll('[data-idioma]').forEach(b => b.addEventListener('click', () => aplicarIdioma(b.dataset.idioma)));
+
+    // Aviso cuando el sistema cerró la sesión por inactividad
+    try {
+      if (localStorage.getItem('fyag_cierre_inactividad') === '1') {
+        document.getElementById('aviso-inactividad').hidden = false;
+        localStorage.removeItem('fyag_cierre_inactividad');
+      }
+    } catch (e) {}
+
+    aplicarLetra(leer('fyag_letra', 'md'));
+    aplicarTema(leer('fyag_tema', 'oscuro'));
+    aplicarIdioma(idioma);
+  })();
 
   // Cuenta regresiva del bloqueo
   (function () {

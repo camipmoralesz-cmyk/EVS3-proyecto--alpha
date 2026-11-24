@@ -150,3 +150,8 @@ MAILERS = {
 LOGIN_URL = 'usuarios:login'
 LOGIN_REDIRECT_URL = 'usuarios:login_por_rol'
 LOGOUT_REDIRECT_URL = 'usuarios:login'
+
+# Cierre de sesión por inactividad: 10 minutos sin peticiones expiran la sesión.
+# Se renueva en cada petición, así el plazo cuenta desde la última actividad.
+SESSION_COOKIE_AGE = 600
+SESSION_SAVE_EVERY_REQUEST = True
