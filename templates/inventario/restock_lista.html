@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Restock de bodega{% endblock %}
+{% block header_title %}Restock: Bodega → Finanzas → Revisión Técnica{% endblock %}
+
+{% block content %}
+<h3 class="fw-bold text-white mb-1"><i class="bi bi-arrow-repeat text-primary me-2"></i>Órdenes de restock</h3>
+<p class="text-secondary small">
+    Bodega solicita la reposición, Finanzas aprueba el presupuesto y el Técnico (o Bodega) revisa el material recibido
+    antes de ingresarlo al stock. El ingreso queda en el Cardex y actualiza el último costo y el PMP.
+</p>
+
+{% if puede_solicitar %}
+<form method="post" class="card card-custom mb-4">
+    {% csrf_token %}
+    <div class="card-header fw-semibold"><i class="bi bi-plus-circle me-1"></i> Nueva solicitud de restock</div>
+    <div class="card-body row g-3">
+        <div class="col-md-4">
+            <label for="articulo" class="form-label small fw-semibold">Artículo *</label>
+            <select name="articulo" id="articulo" class="form-select" required>
+                <option value="">Seleccione artículo...</option>
+                {% for art in articulos %}
+                <option value="{{ art.pk }}" data-costo="{{ art.ultimo_costo_compra }}">
+                    [{{ art.codigo_interno }}] {{ art.nombre }} (Stock: {{ art.stock_actual }} / Mín: {{ art.stock_minimo }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="proveedor" class="form-label small fw-semibold">Proveedor (opcional)</label>
+            <select name="proveedor" id="proveedor" class="form-select">
+                <option value="">Sin proveedor definido</option>
+                {% for prov in proveedores %}<option value="{{ prov.pk }}">{{ prov.razon_social }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="cantidad" class="form-label small fw-semibold">Cantidad *</label>
+            <input type="number" name="cantidad" id="cantidad" step="0.01" min="0.01" class="form-control" required>
+        </div>
+        <div class="col-md-3">
+            <label for="costo_unitario" class="form-label small fw-semibold">Costo unitario estimado ($) *</label>
+            <input type="number" name="costo_unitario" id="costo_unitario" step="1" min="0" class="form-control" required>
+        </div>
+        <div class="col-md-9">
+            <label for="observaciones" class="form-label small fw-semibold">Observaciones</label>
+            <input type="text" name="observaciones" id="observaciones" class="form-control" placeholder="Ej: Stock bajo mínimo, se requiere para mantenciones de diciembre">
+        </div>
+        <div class="col-md-3 d-flex flex-column justify-content-end">
+            <div class="small text-secondary mb-1">Monto estimado: <strong class="text-info">$<span id="lblMonto">0</span></strong></div>
+            <button type="submit" class="btn btn-primary fw-semibold"><i class="bi bi-send me-1"></i> Enviar a Finanzas</button>
+        </div>
+    </div>
+</form>
+{% endif %}
+
+{% for valor, etiqueta, ordenes in etapas %}
+<div class="card card-custom mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">{{ etiqueta }}</span>
+        <span class="badge {% if valor == 'PENDIENTE_FINANZAS' %}bg-warning text-dark{% elif valor == 'APROBADA_FINANZAS' %}bg-info text-dark{% elif valor == 'INSERTADA' %}bg-success{% else %}bg-danger{% endif %}">{{ ordenes|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="small text-uppercase">
+                    <tr>
+                        <th>N°</th><th>Artículo</th><th>Proveedor</th>
+                        <th class="text-center">Cantidad</th><th class="text-end">Costo unit.</th><th class="text-end">Monto</th>
+                        <th>Trazabilidad</th><th style="min-width: 260px;">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for o in ordenes %}
+                    <tr>
+                        <td class="fw-bold">#{{ o.pk }}</td>
+                        <td>{{ o.articulo.nombre }}<div class="small text-secondary">{{ o.articulo.codigo_interno }}</div></td>
+                        <td class="small">{{ o.proveedor.razon_social|default:"—" }}</td>
+                        <td class="text-center fw-bold">{{ o.cantidad }}</td>
+                        <td class="text-end">${{ o.costo_unitario }}</td>
+                        <td class="text-end fw-bold">${{ o.monto_total }}</td>
+                        <td class="small">
+                            <div>Solicitó: {{ o.solicitado_por.username }} · {{ o.fecha_solicitud|date:"d/m/Y H:i" }}</div>
+                            {% if o.aprobado_por %}<div>{% if o.estado == 'RECHAZADA' %}Rechazó{% else %}Aprobó{% endif %}: {{ o.aprobado_por.username }} · {{ o.fecha_aprobacion|date:"d/m/Y H:i" }}</div>{% endif %}
+                            {% if o.revisado_por %}<div>Revisó e ingresó: {{ o.revisado_por.username }} · {{ o.fecha_recepcion|date:"d/m/Y H:i" }}</div>{% endif %}
+                            {% if o.observaciones %}<div class="text-secondary" style="white-space: pre-line;">{{ o.observaciones }}</div>{% endif %}
+                        </td>
+                        <td>
+                            {% if o.estado == 'PENDIENTE_FINANZAS' %}
+                                {% if puede_aprobar %}
+                                <form method="post" action="{% url 'aprobar_restock_finanzas' o.pk %}" class="d-flex flex-column gap-1">
+                                    {% csrf_token %}
+                                    <input type="text" name="observacion" class="form-control form-control-sm" placeholder="Observación (obligatoria si rechaza)">
+                                    <div class="d-flex gap-1">
+                                        <button name="decision" value="aprobar" class="btn btn-sm btn-success flex-grow-1"><i class="bi bi-check-lg"></i> Aprobar presupuesto</button>
+                                        <button name="decision" value="rechazar" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> Rechazar</button>
+                                    </div>
+                                </form>
+                                {% else %}<span class="small text-secondary">Esperando aprobación de Finanzas</span>{% endif %}
+                            {% elif o.estado == 'APROBADA_FINANZAS' %}
+                                {% if puede_recibir %}
+                                <form method="post" action="{% url 'confirmar_recepcion_restock' o.pk %}" class="small">
+                                    {% csrf_token %}
+                                    <div class="form-check"><input class="form-check-input" type="checkbox" name="check_cantidad" value="1" id="cc{{ o.pk }}" required><label class="form-check-label" for="cc{{ o.pk }}">Cantidad recibida coincide</label></div>
+                                    <div class="form-check"><input class="form-check-input" type="checkbox" name="check_estado" value="1" id="ce{{ o.pk }}" required><label class="form-check-label" for="ce{{ o.pk }}">Material en buen estado</label></div>
+                                    <div class="form-check"><input class="form-check-input" type="checkbox" name="check_especificacion" value="1" id="cs{{ o.pk }}" required><label class="form-check-label" for="cs{{ o.pk }}">Cumple especificación técnica</label></div>
+                                    <input type="text" name="observacion" class="form-control form-control-sm my-1" placeholder="Observación de la revisión (opcional)">
+                                    <button class="btn btn-sm btn-primary w-100"><i class="bi bi-box-arrow-in-down me-1"></i> Confirmar e ingresar al stock</button>
+                                </form>
+                                {% else %}<span class="small text-secondary">Esperando revisión técnica</span>{% endif %}
+                            {% elif o.estado == 'INSERTADA' %}
+                                <span class="badge bg-success">Ingresada al stock</span>
+                            {% else %}
+                                <span class="badge bg-danger">Rechazada</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="text-center text-secondary py-3 small">Sin órdenes en esta etapa.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const art = document.getElementById('articulo');
+    if (!art) return;
+    const cant = document.getElementById('cantidad');
+    const costo = document.getElementById('costo_unitario');
+    const lbl = document.getElementById('lblMonto');
+    function monto() {
+        const total = Math.round((parseFloat(cant.value) || 0) * (parseInt(costo.value) || 0));
+        lbl.textContent = total.toLocaleString('es-CL');
+    }
+    art.addEventListener('change', () => {
+        // Sugiere el último costo de compra como estimación
+        const opt = art.options[art.selectedIndex];
+        if (opt && opt.dataset.costo && !costo.value) costo.value = opt.dataset.costo;
+        monto();
+    });
+    cant.addEventListener('input', monto);
+    costo.addEventListener('input', monto);
+});
+</script>
+{% endblock %}

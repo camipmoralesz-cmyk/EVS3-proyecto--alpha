@@ -1,20 +1,25 @@
-"""Operaciones de bodega: despachos a obra, salidas tipificadas e inventario físico.
-Todas exigen el rol 'bodega'. Las reglas de negocio viven en services.py."""
+"""Operaciones de bodega: despachos a obra, salidas tipificadas, inventario físico y restock.
+Lo que mueve stock exige el rol 'bodega' (el restock lo recibe también el técnico).
+Las reglas de negocio viven en services.py."""
 import csv
 import logging
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
 
+from apps.catalogo.models import Articulo, Categoria
+from apps.entidades.models import Proveedor
+from apps.usuarios.roles import rol_requerido, tiene_rol
 from .forms import AbrirSesionForm, DespachoForm, SalidaTipificadaForm
-from .models import Despacho, SesionInventario, SolicitudDespacho
+from .models import Despacho, OrdenRestock, SesionInventario, SolicitudDespacho
 from .permisos import bodega_requerida, lectura_cardex
 from .services import (
-    abrir_sesion_inventario, cerrar_sesion_inventario, despachar, guardar_conteo,
-    rechazar_solicitud, registrar_salida_tipificada,
+    SECTOR_CHECKLIST_GENERAL, abrir_sesion_inventario, cerrar_sesion_inventario, crear_orden_restock,
+    despachar, guardar_conteo, rechazar_solicitud, recibir_orden_restock, registrar_checklist_general,
+    registrar_salida_tipificada, resolver_orden_restock,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,6 +161,113 @@ def detalle_sesion_inventario(request, pk):
         'sesion': sesion, 'detalles': detalles,
         'contados': sum(1 for d in detalles if d.stock_contado is not None),
     })
+
+
+@rol_requerido('bodega', 'tecnico', 'gerencia')
+@require_http_methods(['GET', 'POST'])
+def checklist_inventario_bodega(request):
+    """Checklist de todos los artículos activos. Técnico y Gerencia lo consultan;
+    solo Bodega lo envía, porque cerrar el checklist ajusta stock en el Cardex."""
+    puede_registrar = tiene_rol(request.user, 'bodega')
+    if request.method == 'POST':
+        if not puede_registrar:
+            raise PermissionDenied
+        conteos = {}
+        for clave in request.POST.getlist('revisado'):
+            if clave.isdigit():
+                conteos[int(clave)] = request.POST.get(f'contado_{clave}', '')
+        try:
+            sesion = registrar_checklist_general(conteos, request.user, request.POST.get('observaciones', ''))
+        except ValidationError as e:
+            messages.error(request, _mensaje(e))
+        else:
+            ajustes = sesion.movimientos.count()
+            messages.success(request, f"Checklist #{sesion.pk} registrado: {sesion.detalles.count()} artículo(s) revisados, "
+                                      f"{ajustes} ajuste(s) en el Cardex (valorización ${sesion.valor_diferencia_total}).")
+            return redirect('checklist_inventario_bodega')
+
+    articulos = Articulo.objects.filter(activo=True).select_related('categoria').order_by('nombre')
+    checklists = (SesionInventario.objects.filter(sector=SECTOR_CHECKLIST_GENERAL)
+                  .select_related('cerrada_por')[:5])
+    return render(request, 'inventario/inventario_checklist.html', {
+        'articulos': articulos,
+        'categorias': Categoria.objects.filter(articulos__activo=True).distinct().order_by('nombre'),
+        'checklists': checklists,
+        'puede_registrar': puede_registrar,
+    })
+
+
+# --------------------------------------------- Restock (Bodega -> Finanzas -> Técnico)
+@rol_requerido('bodega', 'finanzas', 'tecnico', 'gerencia')
+@require_http_methods(['GET', 'POST'])
+def lista_restock(request):
+    puede_solicitar = tiene_rol(request.user, 'bodega')
+    if request.method == 'POST':
+        if not puede_solicitar:
+            raise PermissionDenied
+        proveedor = None
+        if request.POST.get('proveedor', '').isdigit():
+            proveedor = Proveedor.objects.filter(pk=int(request.POST['proveedor'])).first()
+        try:
+            orden = crear_orden_restock(
+                request.POST.get('articulo'), request.POST.get('cantidad'), request.POST.get('costo_unitario'),
+                request.user, proveedor=proveedor, observaciones=request.POST.get('observaciones', ''))
+        except ValidationError as e:
+            messages.error(request, _mensaje(e))
+        else:
+            messages.success(request, f"Restock #{orden.pk} enviado a Finanzas para aprobar el presupuesto "
+                                      f"(${orden.monto_total}).")
+        return redirect('lista_restock')
+
+    ordenes = OrdenRestock.objects.select_related(
+        'articulo', 'proveedor', 'solicitado_por', 'aprobado_por', 'revisado_por')
+    etapas = [(valor, etiqueta, [o for o in ordenes if o.estado == valor]) for valor, etiqueta in OrdenRestock.ESTADOS]
+    return render(request, 'inventario/restock_lista.html', {
+        'etapas': etapas,
+        'articulos': Articulo.objects.filter(activo=True).order_by('nombre'),
+        'proveedores': Proveedor.objects.filter(tipo=Proveedor.Tipo.PROVEEDOR, activo=True).order_by('razon_social'),
+        'puede_solicitar': puede_solicitar,
+        'puede_aprobar': tiene_rol(request.user, 'finanzas', 'gerencia'),
+        'puede_recibir': tiene_rol(request.user, 'tecnico', 'bodega'),
+    })
+
+
+@rol_requerido('finanzas', 'gerencia')
+@require_POST
+def aprobar_restock_finanzas(request, pk):
+    aprobar = request.POST.get('decision') != 'rechazar'
+    try:
+        orden = resolver_orden_restock(pk, request.user, aprobar, request.POST.get('observacion', ''))
+    except ValidationError as e:
+        messages.error(request, _mensaje(e))
+    else:
+        if aprobar:
+            messages.success(request, f"Presupuesto del restock #{orden.pk} aprobado (${orden.monto_total}). "
+                                      f"Queda pendiente la revisión técnica.")
+        else:
+            messages.warning(request, f"Restock #{orden.pk} rechazado por Finanzas.")
+    return redirect('lista_restock')
+
+
+# Ítems que el técnico debe confirmar antes de ingresar el material al stock
+CHECKLIST_RECEPCION = ('check_cantidad', 'check_estado', 'check_especificacion')
+
+
+@rol_requerido('tecnico', 'bodega')
+@require_POST
+def confirmar_recepcion_restock(request, pk):
+    if not all(request.POST.get(c) for c in CHECKLIST_RECEPCION):
+        messages.error(request, "Complete el checklist de conformidad técnica (cantidad, estado y especificación) "
+                                "antes de ingresar el material.")
+        return redirect('lista_restock')
+    try:
+        mov = recibir_orden_restock(pk, request.user, request.POST.get('observacion', ''))
+    except ValidationError as e:
+        messages.error(request, _mensaje(e))
+    else:
+        messages.success(request, f"Restock #{pk} ingresado: {mov.cantidad} x {mov.articulo.nombre}. "
+                                  f"Stock actualizado a {mov.stock_posterior}.")
+    return redirect('lista_restock')
 
 
 @lectura_cardex

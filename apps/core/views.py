@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
@@ -52,11 +54,28 @@ def dashboard(request):
     facturas_borrador = DocumentoEntrada.objects.filter(
         estado=DocumentoEntrada.ESTADO_BORRADOR
     ).count()
-    mermas_mes = MovimientoInventario.objects.filter(
-        tipo_movimiento=MovimientoInventario.TIPO_MERMA,
-        fecha__year=hoy.year,
-        fecha__month=hoy.month,
-    ).count()
+    # Indicador de merma del mes: eventos, unidades y pérdida económica (al costo del asiento)
+    mermas_qs = list(
+        MovimientoInventario.objects
+        .filter(tipo_movimiento=MovimientoInventario.TIPO_MERMA, fecha__year=hoy.year, fecha__month=hoy.month)
+        .select_related('articulo', 'obra', 'usuario')
+        .order_by('-fecha', '-id')
+    )
+    mermas_mes = len(mermas_qs)
+    mermas_unidades_mes = sum((m.cantidad for m in mermas_qs), Decimal('0'))
+    mermas_valor_mes = sum(int(m.cantidad * m.costo_unitario) for m in mermas_qs)
+    ultimas_mermas = [
+        {
+            'fecha': m.fecha,
+            'articulo': m.articulo,
+            'obra': m.obra,
+            'cantidad': m.cantidad,
+            'valor': int(m.cantidad * m.costo_unitario),
+            'usuario': m.usuario,
+            'justificacion': m.justificacion,
+        }
+        for m in mermas_qs[:5]
+    ]
 
     context = {
         'total_articulos': total_articulos,
@@ -69,6 +88,9 @@ def dashboard(request):
         'solicitudes_pendientes': solicitudes_pendientes,
         'facturas_borrador': facturas_borrador,
         'mermas_mes': mermas_mes,
+        'mermas_unidades_mes': mermas_unidades_mes,
+        'mermas_valor_mes': mermas_valor_mes,
+        'ultimas_mermas': ultimas_mermas,
     }
     return render(request, 'core/dashboard.html', context)
 

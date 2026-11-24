@@ -171,6 +171,11 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a href="{% url 'lista_restock' %}" class="nav-link {% if request.resolver_match.url_name == 'lista_restock' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-arrow-repeat me-2"></i> Restock de Bodega
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="{% url 'historial_movimientos' %}" class="nav-link {% if seccion_activa == 'kardex' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-journal-check me-2"></i> Kardex (solo lectura)
                 </a>
@@ -203,6 +208,11 @@
             <li class="nav-item">
                 <a href="{% url 'finanzas:presupuestos_lista' %}" class="nav-link {% if seccion_activa == 'finanzas_presupuestos' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-calculator me-2"></i> Presupuestos de Obras
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_restock' %}" class="nav-link {% if request.resolver_match.url_name == 'lista_restock' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-arrow-repeat me-2"></i> Restock de Bodega
                 </a>
             </li>
             <li class="nav-item">
@@ -258,6 +268,16 @@
             <li class="nav-item">
                 <a href="{% url 'obras:kardex_lectura' %}" class="nav-link {% if seccion_activa == 'obras_kardex' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-eye me-2"></i> Stock y Kardex (Lectura)
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_restock' %}" class="nav-link {% if request.resolver_match.url_name == 'lista_restock' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-arrow-repeat me-2"></i> Restock de Bodega
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'checklist_inventario_bodega' %}" class="nav-link {% if request.resolver_match.url_name == 'checklist_inventario_bodega' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-list-check me-2"></i> Checklist de Bodega
                 </a>
             </li>
 

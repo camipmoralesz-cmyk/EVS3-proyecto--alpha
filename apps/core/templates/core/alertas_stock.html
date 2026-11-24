@@ -10,9 +10,14 @@
             <h1 class="h3 fw-bold text-white mb-1">Panel de Alertas de Stock</h1>
             <p class="text-secondary mb-0">Supervisión gerencial de insumos bajo el umbral mínimo o en quiebre crítico.</p>
         </div>
-        <a href="{% url 'core:exportar_pdf' 'alertas' %}" target="_blank" class="btn btn-outline-info">
-            <i class="bi bi-file-earmark-pdf-fill me-1"></i> Generar Reporte PDF
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'lista_restock' %}" class="btn btn-warning fw-semibold">
+                <i class="bi bi-arrow-repeat me-1"></i> Gestionar Restock
+            </a>
+            <a href="{% url 'core:exportar_pdf' 'alertas' %}" target="_blank" class="btn btn-outline-info">
+                <i class="bi bi-file-earmark-pdf-fill me-1"></i> Generar Reporte PDF
+            </a>
+        </div>
     </div>
 
     <div class="card border-danger border-opacity-50 mb-4" style="background-color: #1a1d21;">

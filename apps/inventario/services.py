@@ -14,7 +14,7 @@ from apps.entidades.models import Proveedor
 from apps.obras.models import Obra
 from .models import (
     DetalleDocumento, DetalleSesionInventario, DetalleSolicitud, Despacho, DocumentoEntrada,
-    MovimientoInventario as M, SesionInventario, SolicitudDespacho,
+    MovimientoInventario as M, OrdenRestock, SesionInventario, SolicitudDespacho,
 )
 
 TIPOS_SUMAN = {M.TIPO_ENTRADA, M.TIPO_DEVOLUCION_OBRA, M.TIPO_AJUSTE_POS}
@@ -81,7 +81,7 @@ def calcular_subtotal_linea(precio_unitario_final, cantidad):
 @transaction.atomic
 def registrar_movimiento(articulo_id, tipo, cantidad, usuario, referencia, costo=None, documento=None,
                          obra=None, justificacion='', proveedor=None, tecnico=None, despacho=None,
-                         sesion=None, actualizar_costos=False):
+                         sesion=None, actualizar_costos=False, orden_restock=None):
     if tipo not in TIPOS_SUMAN | TIPOS_RESTAN:
         raise ValidationError(f"Tipo de movimiento no soportado: {tipo}.")
     if usuario is None or not getattr(usuario, 'pk', None):
@@ -125,8 +125,9 @@ def registrar_movimiento(articulo_id, tipo, cantidad, usuario, referencia, costo
 
     campos = ['stock_actual']
     if actualizar_costos:
-        # Único lugar donde cambian el último costo y el PMP: siempre con un documento de respaldo.
-        if tipo != M.TIPO_ENTRADA or costo is None or documento is None:
+        # Único lugar donde cambian el último costo y el PMP: siempre con un respaldo
+        # (documento tributario u orden de restock aprobada por Finanzas).
+        if tipo != M.TIPO_ENTRADA or costo is None or (documento is None and orden_restock is None):
             raise ValidationError("El costo solo se actualiza con una entrada respaldada por un documento.")
         costo_previo = Decimal(anterior) * Decimal(articulo.pmp_costo_actual)
         pmp = (costo_previo + cantidad * Decimal(int(costo))) / posterior
@@ -143,6 +144,7 @@ def registrar_movimiento(articulo_id, tipo, cantidad, usuario, referencia, costo
         costo_unitario=articulo.pmp_costo_actual if costo is None else int(costo),
         usuario=usuario, referencia=referencia[:255], obra=obra, proveedor=proveedor,
         tecnico=tecnico, despacho=despacho, sesion_inventario=sesion, justificacion=justificacion,
+        orden_restock=orden_restock,
     )
 
 
@@ -485,6 +487,108 @@ def cerrar_sesion_inventario(sesion_id, usuario, observaciones=''):
     sesion.valor_diferencia_total = total_valor
     sesion.save()
     return sesion
+
+
+SECTOR_CHECKLIST_GENERAL = 'CHECKLIST GENERAL BODEGA'
+
+
+@transaction.atomic
+def registrar_checklist_general(conteos, usuario, observaciones=''):
+    """Checklist de toda la bodega. conteos = {articulo_id: texto contado} solo de los
+    artículos marcados como revisados. Deja una sesión cerrada con su detalle y, si hay
+    diferencias, los ajustes (+/-) en el Cardex a través de cerrar_sesion_inventario()."""
+    if not conteos:
+        raise ValidationError("Marque como revisado al menos un artículo del checklist.")
+    articulos = list(Articulo.objects.select_for_update()
+                     .filter(pk__in=conteos.keys(), activo=True).order_by('pk'))
+    if len(articulos) != len(conteos):
+        raise ValidationError("El checklist incluye artículos que no existen o están desactivados.")
+    if SesionInventario.objects.filter(sector=SECTOR_CHECKLIST_GENERAL,
+                                       estado=SesionInventario.Estado.ABIERTA).exists():
+        raise ValidationError("Ya hay un checklist general en curso. Intente nuevamente en unos segundos.")
+    try:
+        with transaction.atomic():
+            sesion = SesionInventario.objects.create(sector=SECTOR_CHECKLIST_GENERAL, abierta_por=usuario)
+    except IntegrityError:
+        raise ValidationError("Ya hay un checklist general en curso. Intente nuevamente en unos segundos.")
+
+    detalles = DetalleSesionInventario.objects.bulk_create([
+        DetalleSesionInventario(sesion=sesion, articulo=a, stock_sistema=a.stock_actual) for a in articulos
+    ])
+    guardar_conteo(sesion.pk, {d.pk: conteos[d.articulo_id] for d in detalles})
+    return cerrar_sesion_inventario(sesion.pk, usuario, observaciones)
+
+
+# ---------------------------------------------------------------------------
+# RESTOCK: Bodega solicita -> Finanzas aprueba -> Técnico/Bodega recibe e ingresa
+# ---------------------------------------------------------------------------
+@transaction.atomic
+def crear_orden_restock(articulo_id, cantidad, costo_unitario, usuario, proveedor=None, observaciones=''):
+    cantidad = _a_decimal(cantidad, "La cantidad")
+    if cantidad <= 0:
+        raise ValidationError("La cantidad a reponer debe ser mayor a cero.")
+    try:
+        costo = int(costo_unitario)
+    except (TypeError, ValueError):
+        raise ValidationError("El costo unitario estimado debe ser un número entero (CLP).")
+    if costo < 0:
+        raise ValidationError("El costo unitario no puede ser negativo.")
+    articulo = Articulo.objects.filter(pk=articulo_id, activo=True).first()
+    if articulo is None:
+        raise ValidationError("El artículo seleccionado no existe o está desactivado.")
+    if proveedor is not None and (proveedor.tipo != Proveedor.Tipo.PROVEEDOR or not proveedor.activo):
+        raise ValidationError("El proveedor debe ser una ficha de proveedor activa.")
+    return OrdenRestock.objects.create(
+        articulo=articulo, proveedor=proveedor, cantidad=cantidad, costo_unitario=costo,
+        solicitado_por=usuario, observaciones=(observaciones or '').strip(),
+    )
+
+
+@transaction.atomic
+def resolver_orden_restock(orden_id, usuario, aprobar, observacion=''):
+    """Finanzas aprueba o rechaza el presupuesto de la orden (rechazar exige motivo)."""
+    orden = OrdenRestock.objects.select_for_update().filter(pk=orden_id).first()
+    if orden is None:
+        raise ValidationError("La orden de restock no existe.")
+    if orden.estado != OrdenRestock.ESTADO_PENDIENTE_FINANZAS:
+        raise ValidationError("Solo se pueden resolver órdenes pendientes de aprobación de Finanzas.")
+    observacion = (observacion or '').strip()
+    if not aprobar and len(observacion) < MIN_JUSTIFICACION:
+        raise ValidationError(f"Indique el motivo del rechazo (mínimo {MIN_JUSTIFICACION} caracteres).")
+
+    orden.estado = OrdenRestock.ESTADO_APROBADA_FINANZAS if aprobar else OrdenRestock.ESTADO_RECHAZADA
+    orden.aprobado_por = usuario
+    orden.fecha_aprobacion = timezone.now()
+    if observacion:
+        etiqueta = 'Finanzas' if aprobar else 'Rechazo Finanzas'
+        orden.observaciones = f"{orden.observaciones}\n[{etiqueta}] {observacion}".strip()
+    orden.save(update_fields=['estado', 'aprobado_por', 'fecha_aprobacion', 'observaciones'])
+    return orden
+
+
+@transaction.atomic
+def recibir_orden_restock(orden_id, usuario, observacion=''):
+    """Revisión técnica conforme: ingresa el material al stock por el punto único del Cardex."""
+    orden = OrdenRestock.objects.select_for_update().select_related('proveedor').filter(pk=orden_id).first()
+    if orden is None:
+        raise ValidationError("La orden de restock no existe.")
+    if orden.estado != OrdenRestock.ESTADO_APROBADA_FINANZAS:
+        raise ValidationError("Solo se puede ingresar al stock una orden con presupuesto aprobado por Finanzas.")
+
+    movimiento = registrar_movimiento(
+        orden.articulo_id, M.TIPO_ENTRADA, orden.cantidad, usuario,
+        referencia=f"Restock #{orden.pk} aprobado por Finanzas",
+        costo=orden.costo_unitario, proveedor=orden.proveedor,
+        actualizar_costos=True, orden_restock=orden,
+    )
+    orden.estado = OrdenRestock.ESTADO_INSERTADA
+    orden.revisado_por = usuario
+    orden.fecha_recepcion = timezone.now()
+    observacion = (observacion or '').strip()
+    if observacion:
+        orden.observaciones = f"{orden.observaciones}\n[Revisión técnica] {observacion}".strip()
+    orden.save(update_fields=['estado', 'revisado_por', 'fecha_recepcion', 'observaciones'])
+    return movimiento
 
 
 @transaction.atomic
