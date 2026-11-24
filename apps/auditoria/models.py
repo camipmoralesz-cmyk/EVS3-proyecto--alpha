@@ -33,8 +33,8 @@ class MovimientoCardex(models.Model):
 
     articulo = models.ForeignKey('catalogo.Articulo', on_delete=models.PROTECT, related_name='movimientos')
     tipo_movimiento = models.CharField(max_length=25, choices=TIPO_MOVIMIENTO_CHOICES)
-    cantidad = models.IntegerField()
-    saldo_resultante = models.IntegerField()
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
+    saldo_resultante = models.DecimalField(max_digits=10, decimal_places=2)
     valor_unitario = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     fecha_hora = models.DateTimeField(default=timezone.now)
 

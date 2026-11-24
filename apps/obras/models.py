@@ -54,6 +54,8 @@ class Obra(models.Model):
         verbose_name_plural = "Obras"
         ordering = ['nombre']
 
+    def __str__(self):
+        return self.nombre
 
     def clean(self):
             super().clean()
@@ -131,8 +133,9 @@ class SolicitudMaterialObra(models.Model):
         verbose_name = "Solicitud de Material"
         verbose_name_plural = "Solicitudes de Materiales"
         ordering = ['-fecha_solicitud']
+
     def __str__(self):
-        return f"Solicitud #{id or 'Nueva'} - {self.articulo.nombre} ({self.cantidad} un.)"
+        return f"Solicitud #{self.pk or 'Nueva'} - {self.articulo.nombre} ({self.cantidad} un.)"
 
 
 class HojaServicioObra(models.Model):

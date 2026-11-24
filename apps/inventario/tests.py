@@ -245,7 +245,7 @@ class TransaccionInventarioTest(TestCase):
         self.assertEqual(self.articulo1.stock_actual, Decimal('100.00'))
         self.assertEqual(MovimientoInventario.objects.filter(documento=documento).count(), 0)
 
-        confirmar_documento_borrador(documento.pk, usuario=None)
+        confirmar_documento_borrador(documento.pk, usuario=self.usuario)
 
         documento.refresh_from_db()
         self.articulo1.refresh_from_db()
@@ -254,7 +254,7 @@ class TransaccionInventarioTest(TestCase):
         self.assertEqual(MovimientoInventario.objects.filter(documento=documento).count(), 2)
 
         with self.assertRaises(ValidationError):
-            confirmar_documento_borrador(documento.pk, usuario=None)
+            confirmar_documento_borrador(documento.pk, usuario=self.usuario)
 
         self.articulo1.refresh_from_db()
         self.assertEqual(self.articulo1.stock_actual, Decimal('105.00'))

@@ -12,7 +12,7 @@ User = get_user_model()
 class AuditoriaSeguridadTests(TestCase):
     def setUp(self):
         self.client = Client()
-        self.grupo_auditor, _ = Group.objects.get_or_create(name='AUDITOR')
+        self.grupo_auditor, _ = Group.objects.get_or_create(name='Auditor')
         self.auditor = User.objects.create_user(username='auditor_test', password='Password123!')
         self.auditor.groups.add(self.grupo_auditor)
 

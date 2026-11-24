@@ -13,6 +13,21 @@ from .middleware import get_current_user, get_current_ip
 # ==============================================================================
 # 1. SINCRONIZACIÓN AUTOMÁTICA: INVENTARIO -> CARDEX INMUTABLE (RF06 / HU-12)
 # ==============================================================================
+# Tipos de MovimientoInventario -> choices de MovimientoCardex.
+# 'SALIDA' se resuelve aparte: NC = devolución a proveedor, si no egreso.
+MAPA_TIPOS_CARDEX = {
+    'ENTRADA': 'INGRESO',
+    'EGRESO_OBRA': 'EGRESO',
+    'MERMA': 'MERMA',
+    'DEVOLUCION_OBRA': 'DEVOLUCION_FAENA',
+    'DEVOLUCION_PROVEEDOR': 'DEVOLUCION_PROVEEDOR',
+    'USO_INTERNO': 'USO_INTERNO',
+    'AJUSTE_POS': 'AJUSTE_INVENTARIO',
+    'AJUSTE_NEG': 'AJUSTE_INVENTARIO',
+    'AJUSTE': 'AJUSTE_INVENTARIO',
+    'ANULACION': 'ANULACION',
+}
+
 @receiver(post_save, sender=MovimientoInventario)
 def sincronizar_movimiento_a_cardex(sender, instance, created, **kwargs):
     """
@@ -22,26 +37,24 @@ def sincronizar_movimiento_a_cardex(sender, instance, created, **kwargs):
     if not created:
         return
 
+    # Eventos de sesión (INGRESO_SISTEMA / SALIDA_SISTEMA) no mueven stock: no van al Cardex
+    if instance.articulo_id is None:
+        return
+
     # Evitar duplicados si el movimiento nació de una anulación en Auditoría
     if instance.referencia and instance.referencia.startswith("ANULACION_AUDITORIA:"):
         return
 
-    mapa_tipos = {
-        'ENTRADA': 'INGRESO',
-        'SALIDA': 'EGRESO',
-        'AJUSTE': 'AJUSTE_INVENTARIO',
-    }
-    tipo_cardex = mapa_tipos.get(instance.tipo_movimiento, 'INGRESO')
+    es_nota_credito = bool(instance.documento and instance.documento.es_nota_credito)
+    if instance.tipo_movimiento == 'SALIDA':
+        tipo_cardex = 'DEVOLUCION_PROVEEDOR' if es_nota_credito else 'EGRESO'
+    else:
+        tipo_cardex = MAPA_TIPOS_CARDEX.get(instance.tipo_movimiento, 'AJUSTE_INVENTARIO')
 
-    if instance.documento and getattr(instance.documento, 'tipo_documento', '') == 'NOTA_CREDITO':
-        tipo_cardex = 'DEVOLUCION_PROVEEDOR'
-
-    # Salidas negativas y entradas positivas para mantener suma algebraica
-    cantidad_signed = (
-        int(instance.cantidad)
-        if instance.tipo_movimiento == 'ENTRADA'
-        else -int(abs(instance.cantidad))
-    )
+    # Entradas positivas y salidas negativas para mantener la suma algebraica del saldo
+    cantidad_signed = abs(instance.cantidad)
+    if instance.stock_posterior < instance.stock_anterior:
+        cantidad_signed = -cantidad_signed
 
     doc_ref = ""
     if instance.documento:
@@ -51,9 +64,10 @@ def sincronizar_movimiento_a_cardex(sender, instance, created, **kwargs):
         articulo=instance.articulo,
         tipo_movimiento=tipo_cardex,
         cantidad=cantidad_signed,
-        saldo_resultante=int(instance.stock_posterior),
+        saldo_resultante=instance.stock_posterior,
         valor_unitario=instance.costo_unitario,
         usuario=instance.usuario or get_current_user(),
+        obra=instance.obra,
         documento_referencia=doc_ref,
         justificacion=instance.referencia or f"Movimiento automático desde Inventario ({doc_ref or 'Sin documento'})",
         es_reversa=False
@@ -94,9 +108,8 @@ def registrar_login_fallido(sender, credentials, request, **kwargs):
 MODELOS_AUDITADOS = [
     ('catalogo', 'Articulo', 'Catálogo'),
     ('entidades', 'Proveedor', 'Entidades'),
-    ('entidades', 'Cliente', 'Entidades'),
     ('obras', 'Obra', 'Obras'),
-    ('inventario', 'DocumentoInventario', 'Inventario'),
+    ('inventario', 'DocumentoEntrada', 'Inventario'),
 ]
 
 # Guardamos referencias para evitar que Python recolecte los receivers dinámicos

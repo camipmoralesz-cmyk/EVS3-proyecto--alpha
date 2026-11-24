@@ -17,6 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
 from apps.catalogo.models import Articulo
+from apps.usuarios.roles import tiene_rol
 from .models import MovimientoCardex, BitacoraAuditoria, LogAcceso
 from .forms import AnulacionControladaForm, FiltroCardexForm
 from .middleware import get_current_ip
@@ -25,24 +26,11 @@ from .middleware import get_current_ip
 # --- FUNCIONES DE VERIFICACIÓN DE ROLES ---
 
 def usuario_puede_auditar(user):
-    if not user.is_authenticated:
-        return False
-    if user.is_superuser:
-        return True
-    roles_permitidos = {'ADMINISTRADOR_GENERAL', 'AUDITOR', 'CONSULTA', 'FINANZAS', 'GERENCIA'}
-    grupos_usuario = {g.name.upper() for g in user.groups.all()}
-    rol_attr = getattr(user, 'rol', '').upper()
-    return bool(grupos_usuario & roles_permitidos) or (rol_attr in roles_permitidos)
+    return tiene_rol(user, 'gerencia', 'consulta', 'finanzas', 'auditor')
 
 
 def usuario_es_admin_general(user):
-    if not user.is_authenticated:
-        return False
-    if user.is_superuser:
-        return True
-    grupos_usuario = {g.name.upper() for g in user.groups.all()}
-    rol_attr = getattr(user, 'rol', '').upper()
-    return bool(grupos_usuario & {'ADMINISTRADOR_GENERAL', 'GERENCIA'}) or (rol_attr in {'ADMINISTRADOR_GENERAL', 'GERENCIA'})
+    return tiene_rol(user, 'gerencia')
 
 
 class PuedeAuditarMixin(LoginRequiredMixin, UserPassesTestMixin):

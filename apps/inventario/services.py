@@ -149,59 +149,22 @@ def registrar_movimiento(articulo_id, tipo, cantidad, usuario, referencia, costo
 # ---------------------------------------------------------------------------
 # INGRESO DE DOCUMENTOS TRIBUTARIOS (HU-01)
 # ---------------------------------------------------------------------------
-def _aplicar_detalle_en_inventario(documento, detalle, articulo, usuario):
-    cantidad = detalle.cantidad
-    precio_final = detalle.precio_unitario_final
-    stock_anterior = articulo.stock_actual
-    es_nota_credito = documento.tipo_documento == DocumentoEntrada.TIPO_NOTA_CREDITO
+def _glosa_documento(documento):
+    return (f"{documento.get_tipo_documento_display()} N° {documento.numero_documento} - "
+            f"{documento.proveedor.razon_social}")
 
-    if es_nota_credito:
-        if stock_anterior < cantidad:
-            raise ValidationError(
-                f"Stock insuficiente para aplicar Nota de Crédito en '{articulo.nombre}'. "
-                f"Stock actual: {stock_anterior}, requerido: {cantidad}"
-            )
-        nuevo_stock = stock_anterior - cantidad
-        tipo_movimiento = MovimientoInventario.TIPO_SALIDA
-        referencia = (
-            f"Nota de Crédito N° {documento.numero_documento} - "
-            f"{documento.proveedor.razon_social}"
-        )
+
+def _movimiento_por_documento(documento, articulo_id, cantidad, precio_final, usuario):
+    """Asienta una línea del documento en el Cardex: la NC resta sin tocar el PMP,
+    factura/boleta/guía suman y recalculan último costo y PMP."""
+    if documento.es_nota_credito:
+        tipo, actualizar_costos = M.TIPO_SALIDA, False
     else:
-        nuevo_stock = stock_anterior + cantidad
-        tipo_movimiento = MovimientoInventario.TIPO_ENTRADA
-        referencia = (
-            f"{documento.get_tipo_documento_display()} N° "
-            f"{documento.numero_documento} - {documento.proveedor.razon_social}"
-        )
-        articulo.ultimo_costo_compra = precio_final
-        if nuevo_stock > 0:
-            costo_anterior_total = (
-                Decimal(str(stock_anterior))
-                * Decimal(str(articulo.pmp_costo_actual))
-            )
-            costo_nuevo_total = cantidad * Decimal(str(precio_final))
-            pmp_calculado = (
-                costo_anterior_total + costo_nuevo_total
-            ) / Decimal(str(nuevo_stock))
-            articulo.pmp_costo_actual = int(
-                pmp_calculado.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
-            )
-        else:
-            articulo.pmp_costo_actual = precio_final
-
-    articulo.stock_actual = nuevo_stock
-    articulo.save()
-    MovimientoInventario.objects.create(
-        articulo=articulo,
-        documento=documento,
-        tipo_movimiento=tipo_movimiento,
-        cantidad=cantidad,
-        stock_anterior=stock_anterior,
-        stock_posterior=nuevo_stock,
-        costo_unitario=precio_final,
-        usuario=usuario,
-        referencia=referencia,
+        tipo, actualizar_costos = M.TIPO_ENTRADA, True
+    return registrar_movimiento(
+        articulo_id, tipo, cantidad, usuario, _glosa_documento(documento),
+        costo=precio_final, documento=documento, proveedor=documento.proveedor,
+        actualizar_costos=actualizar_costos,
     )
 
 
@@ -218,43 +181,13 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
         raise ValidationError("El documento debe contener al menos una línea de detalle.")
 
     proveedor = datos_documento['proveedor']
-    tipo_documento = datos_documento['tipo_documento']
-    numero_documento = str(datos_documento['numero_documento']).strip()
-    tipos_validos = {tipo for tipo, _ in DocumentoEntrada.TIPOS_DOCUMENTO}
-    if tipo_documento not in tipos_validos:
-        raise ValidationError("El tipo de documento seleccionado no es válido.")
-    if not numero_documento:
-        raise ValidationError("El número del documento es obligatorio.")
-    if not proveedor.activo or proveedor.tipo != proveedor.Tipo.PROVEEDOR:
-        raise ValidationError("Debe seleccionar un proveedor activo.")
-    if DocumentoEntrada.objects.filter(
-        proveedor=proveedor,
-        tipo_documento=tipo_documento,
-        numero_documento=numero_documento,
-    ).exists():
-        raise ValidationError("Ya existe un documento con ese tipo y número para este proveedor.")
-
-    # 1. Crear encabezado del documento
-    tipo_doc = datos_documento['tipo_documento']
-    if tipo_doc == 'GUIA':
-        tipo_doc = DocumentoEntrada.TIPO_GUIA
-
-    documento = DocumentoEntrada.objects.create(
-        proveedor=datos_documento['proveedor'],
-        tipo_documento=tipo_doc,
-        numero_documento=datos_documento['numero_documento'].strip(),
-        fecha_emision=datos_documento['fecha_emision'],
-        observaciones=datos_documento.get('observaciones', ''),
-        registrado_por=usuario,
-        monto_neto=0)
-    proveedor = datos_documento['proveedor']
     if proveedor.tipo != Proveedor.Tipo.PROVEEDOR or not proveedor.activo:
         raise ValidationError("Debe seleccionar un proveedor activo (los mandantes no emiten documentos de compra).")
 
     tipo_doc = datos_documento['tipo_documento']
     if tipo_doc not in dict(DocumentoEntrada.TIPOS_DOCUMENTO):
         raise ValidationError("Tipo de documento no válido.")
-    numero = (datos_documento['numero_documento'] or '').strip()
+    numero = str(datos_documento.get('numero_documento') or '').strip()
     if not numero:
         raise ValidationError("Debe ingresar el número del documento.")
 
@@ -277,137 +210,43 @@ def registrar_documento_entrada(datos_documento, lineas_detalle, usuario=None):
         observaciones=datos_documento.get('observaciones', ''), registrado_por=usuario, monto_neto=0,
     )
 
-    es_nc = documento.es_nota_credito
-    glosa = f"{documento.get_tipo_documento_display()} N° {numero} - {proveedor.razon_social}"
-    total = 0
-    total_neto_acumulado = 0
-
+    total_neto = 0
     for linea in lineas_detalle:
-        articulo_id = linea['articulo_id']
-        cantidad = Decimal(str(linea['cantidad']))
-        precio_raw = linea.get('precio_unitario_base', linea.get('precio_unitario', 0))
-        precio_base = int(Decimal(str(precio_raw or 0)))
-        d1 = Decimal(str(linea.get('descuento_1_porcentaje', linea.get('descuento_1', 0)) or 0))
-        d2 = Decimal(str(linea.get('descuento_2_porcentaje', linea.get('descuento_2', 0)) or 0))
-        d3 = Decimal(str(linea.get('descuento_3_porcentaje', linea.get('descuento_3', 0)) or 0))
+        try:
+            articulo_id = int(linea['articulo_id'])
+        except (KeyError, TypeError, ValueError):
+            raise ValidationError("Cada línea debe indicar un artículo válido.")
+        if not Articulo.objects.filter(pk=articulo_id, activo=True).exists():
+            raise ValidationError("Uno de los artículos no existe o está desactivado.")
+
         cantidad = _a_decimal(linea.get('cantidad'), "La cantidad")
         if cantidad <= 0:
             raise ValidationError("La cantidad debe ser mayor a cero en todos los artículos.")
+
         try:
             precio_base = int(linea['precio_unitario_base'])
         except (KeyError, TypeError, ValueError):
             raise ValidationError("El precio base de cada artículo debe ser un número entero.")
         if precio_base < 0:
             raise ValidationError("El precio base no puede ser negativo.")
-        try:
-            articulo_id = int(linea['articulo_id'])
-            cantidad = Decimal(str(linea['cantidad']))
-            precio_base = int(linea['precio_unitario_base'])
-        except (KeyError, TypeError, ValueError, ArithmeticError):
-            raise ValidationError("Cada línea debe incluir artículo, cantidad y precio base válidos.")
-        if not cantidad.is_finite():
-            raise ValidationError("La cantidad debe ser un número válido.")
-        d1 = Decimal(str(linea.get('descuento_1_porcentaje', 0) or 0))
-        d2 = Decimal(str(linea.get('descuento_2_porcentaje', 0) or 0))
-        d3 = Decimal(str(linea.get('descuento_3_porcentaje', 0) or 0))
+
+        d1 = _a_decimal(linea.get('descuento_1_porcentaje') or 0, "El descuento 1")
+        d2 = _a_decimal(linea.get('descuento_2_porcentaje') or 0, "El descuento 2")
+        d3 = _a_decimal(linea.get('descuento_3_porcentaje') or 0, "El descuento 3")
 
         precio_final = calcular_descuentos_sucesivos(precio_base, d1, d2, d3)
         subtotal = calcular_subtotal_linea(precio_final, cantidad)
-        total += subtotal
-
-        articulo_id = linea.get('articulo_id')
-        if not Articulo.objects.filter(pk=articulo_id, activo=True).exists():
-            raise ValidationError("Uno de los artículos no existe o está desactivado.")
+        total_neto += subtotal
 
         DetalleDocumento.objects.create(
             documento=documento, articulo_id=articulo_id, cantidad=cantidad,
             precio_unitario_base=precio_base,
-            descuento_1_porcentaje=d1,
-            descuento_2_porcentaje=d2, 
-            descuento_3_porcentaje=d3,
-            precio_unitario_final=precio_final, 
-            subtotal_linea=subtotal,
+            descuento_1_porcentaje=d1, descuento_2_porcentaje=d2, descuento_3_porcentaje=d3,
+            precio_unitario_final=precio_final, subtotal_linea=subtotal,
         )
+        _movimiento_por_documento(documento, articulo_id, cantidad, precio_final, usuario)
 
-        if es_nc:
-            # La nota de crédito resta existencias y mantiene el PMP vigente.
-            registrar_movimiento(articulo_id, M.TIPO_SALIDA, cantidad, usuario, glosa,
-                                 costo=precio_final, documento=documento)
-        # 3. Bloquear y actualizar el artículo (con select_for_update para prevenir race conditions)
-        try:
-            articulo = Articulo.objects.select_for_update().get(pk=articulo_id)
-        except Articulo.DoesNotExist:
-            raise ValidationError("Uno de los artículos seleccionados ya no existe.")
-        stock_anterior = articulo.stock_actual
-
-        if es_nota_credito:
-            # Nota de crédito descuenta stock
-            if stock_anterior < cantidad:
-                raise ValidationError(
-                    f"Stock insuficiente para aplicar Nota de Crédito en '{articulo.nombre}'. "
-                    f"Stock actual: {stock_anterior}, requerido: {cantidad}"
-                )
-            nuevo_stock = stock_anterior - cantidad
-            tipo_mov = MovimientoInventario.TIPO_SALIDA
-            glosa = f"Nota de Crédito N° {documento.numero_documento} - {documento.proveedor.razon_social}"
-        else:
-            # Factura, boleta y guía suman existencias y recalculan el PMP.
-            registrar_movimiento(articulo_id, M.TIPO_ENTRADA, cantidad, usuario, glosa,
-                                 costo=precio_final, documento=documento, actualizar_costos=True)
-
-            # Actualizar precios de compra y PMP (Precio Medio Ponderado)
-            articulo.ultimo_costo_compra = precio_final
-            if nuevo_stock > 0:
-                costo_anterior_total = Decimal(str(stock_anterior)) * Decimal(str(articulo.pmp_costo_actual))
-                costo_nuevo_total = cantidad * Decimal(str(precio_final))
-                pmp_calculado = (costo_anterior_total + costo_nuevo_total) / Decimal(str(nuevo_stock))
-                articulo.pmp_costo_actual = int(pmp_calculado.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
-            else:
-                articulo.pmp_costo_actual = precio_final
-
-        articulo.stock_actual = nuevo_stock
-        articulo.save()
-
-        # 4. Registrar en MovimientoInventario (log de auditoría)
-        MovimientoInventario.objects.create(
-            articulo=articulo,
-            documento=documento,
-            tipo_movimiento=tipo_mov,
-            cantidad=cantidad,
-            stock_anterior=stock_anterior,
-            stock_posterior=nuevo_stock,
-            costo_unitario=precio_final,
-            usuario=usuario,
-            referencia=glosa)
-# 3. Bloquear y actualizar el artículo vía punto único de escritura al Kardex
-        articulo = Articulo.objects.select_for_update().get(pk=articulo_id)
-        if es_nc:
-            registrar_movimiento(
-                articulo_id,
-                M.TIPO_SALIDA,
-                cantidad,
-                usuario,
-                glosa,
-                costo=precio_final,
-                documento=documento,
-                proveedor=documento.proveedor,
-                actualizar_costos=False,
-            )
-        else:
-            registrar_movimiento(
-                articulo_id,
-                M.TIPO_ENTRADA,
-                cantidad,
-                usuario,
-                glosa,
-                costo=precio_final,
-                documento=documento,
-                proveedor=documento.proveedor,
-                actualizar_costos=True,
-            )
-
-    # Actualizar monto total en el documento
-    documento.monto_neto = total_neto_acumulado
+    documento.monto_neto = total_neto
     documento.save(update_fields=['monto_neto'])
     return documento
 
@@ -547,7 +386,7 @@ def registrar_salida_tipificada(tipo, articulo_id, cantidad, usuario, justificac
             )
         referencia = f"Devolución desde obra {obra}"
     return registrar_movimiento(articulo_id, tipo, cantidad_dec, usuario, referencia, costo=costo,
-                                obra=obra if tipo == M.TIPO_DEVOLUCION_OBRA else None,
+                                obra=obra if tipo in (M.TIPO_DEVOLUCION_OBRA, M.TIPO_MERMA) else None,
                                 proveedor=proveedor if tipo == M.TIPO_DEVOLUCION_PROVEEDOR else None,
                                 justificacion=justificacion)
 
@@ -646,6 +485,8 @@ def cerrar_sesion_inventario(sesion_id, usuario, observaciones=''):
     sesion.valor_diferencia_total = total_valor
     sesion.save()
     return sesion
+
+
 @transaction.atomic
 def confirmar_documento_borrador(documento_id, usuario):
     documento = DocumentoEntrada.objects.select_for_update().get(pk=documento_id)
@@ -659,8 +500,8 @@ def confirmar_documento_borrador(documento_id, usuario):
         raise ValidationError('El borrador ya tiene movimientos de inventario asociados.')
 
     for detalle in detalles:
-        articulo = Articulo.objects.select_for_update().get(pk=detalle.articulo_id)
-        _aplicar_detalle_en_inventario(documento, detalle, articulo, usuario)
+        _movimiento_por_documento(documento, detalle.articulo_id, detalle.cantidad,
+                                  detalle.precio_unitario_final, usuario)
 
     documento.estado = DocumentoEntrada.ESTADO_CONFIRMADO
     documento.save(update_fields=['estado'])
