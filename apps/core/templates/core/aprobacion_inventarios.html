@@ -80,9 +80,9 @@
                         <div class="mb-3">
                             <label class="form-label text-light small fw-semibold">Tipo de Revisión a Aprobar *</label>
                             <select name="tipo_acta" class="form-select" required>
-                                <option value="Inventario Físico Bodega Central">Inventario Físico Bodega Central</option>
-                                <option value="Inventario de Obra / Proyecto Activo">Inventario de Obra / Proyecto Activo</option>
-                                <option value="Auditoría Mensual de Existencias">Auditoría Mensual de Existencias</option>
+                                {% for valor, etiqueta in tipos_acta %}
+                                <option value="{{ valor }}">{{ etiqueta }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="mb-3">
@@ -93,6 +93,96 @@
                             <i class="bi bi-check2-all me-1"></i> Aprobar Oficialmente
                         </button>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-1">
+        <div class="col-lg-6">
+            <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+                <div class="card-body">
+                    <h5 class="card-title text-info fw-bold mb-3">
+                        <i class="bi bi-archive me-2"></i>Últimas Actas Aprobadas
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr class="text-secondary small">
+                                    <th>N°</th>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th class="text-center">Visados</th>
+                                    <th class="text-center">Críticos</th>
+                                    <th>Aprobado por</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for acta in actas_aprobadas %}
+                                <tr>
+                                    <td>#{{ acta.pk }}</td>
+                                    <td class="small">{{ acta.fecha_aprobacion|date:"d/m/Y H:i" }}</td>
+                                    <td class="small" title="{{ acta.observacion }}">{{ acta.get_tipo_acta_display }}</td>
+                                    <td class="text-center">{{ acta.total_articulos_visados }}</td>
+                                    <td class="text-center">
+                                        {% if acta.articulos_criticos_detectados %}
+                                            <span class="badge bg-warning text-dark">{{ acta.articulos_criticos_detectados }}</span>
+                                        {% else %}
+                                            <span class="badge bg-success">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="small">{{ acta.aprobado_por.get_full_name|default:acta.aprobado_por.username }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-secondary py-4">Aún no hay actas aprobadas.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card border-secondary border-opacity-25" style="background-color: #1a1d21;">
+                <div class="card-body">
+                    <h5 class="card-title text-info fw-bold mb-3">
+                        <i class="bi bi-clipboard-data me-2"></i>Sesiones de Inventario Físico Cerradas
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr class="text-secondary small">
+                                    <th>N°</th>
+                                    <th>Sector</th>
+                                    <th>Abierta por</th>
+                                    <th>Cerrada por</th>
+                                    <th>Cierre</th>
+                                    <th class="text-end">Diferencia ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sesion in sesiones_cerradas %}
+                                <tr>
+                                    <td>#{{ sesion.pk }}</td>
+                                    <td>{{ sesion.sector }}</td>
+                                    <td class="small">{{ sesion.abierta_por.username }}</td>
+                                    <td class="small">{{ sesion.cerrada_por.username|default:"-" }}</td>
+                                    <td class="small">{{ sesion.fecha_cierre|date:"d/m/Y H:i"|default:"-" }}</td>
+                                    <td class="text-end fw-semibold {% if sesion.valor_diferencia_total < 0 %}text-danger{% elif sesion.valor_diferencia_total > 0 %}text-success{% endif %}">
+                                        {{ sesion.valor_diferencia_total }}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-secondary py-4">No hay sesiones de inventario cerradas.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

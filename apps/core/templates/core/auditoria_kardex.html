@@ -11,9 +11,6 @@
             <p class="text-secondary mb-0">Registro inmutable de movimientos de bodega, control de ingreso/salida de personal y contra-asientos.</p>
         </div>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalRegistrarMovimiento">
-                <i class="bi bi-plus-circle-fill me-1"></i> Registrar Movimiento
-            </button>
             <a href="{% url 'core:exportar_pdf' 'kardex' %}" target="_blank" class="btn btn-info fw-semibold">
                 <i class="bi bi-file-earmark-pdf-fill me-1"></i> Generar Reporte PDF
             </a>
@@ -187,59 +184,6 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal para Registrar Movimiento de Bodega (Ingreso / Salida de Materiales) -->
-<div class="modal fade" id="modalRegistrarMovimiento" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark text-light border-info">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title text-info fw-bold">
-                    <i class="bi bi-box-seam me-2"></i>Registrar Movimiento de Bodega (Kardex)
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="post" action="{% url 'core:registrar_movimiento' %}">
-                {% csrf_token %}
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-white">Tipo de Operación *</label>
-                        <select name="tipo_movimiento" class="form-select" required>
-                            <option value="ENTRADA">Ingreso de Materiales a Bodega</option>
-                            <option value="SALIDA">Salida de Materiales de Bodega</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-white">Producto / Material *</label>
-                        <select name="articulo_id" class="form-select" required>
-                            <option value="">Seleccione artículo...</option>
-                            {% for art in articulos %}
-                                <option value="{{ art.id }}">[{{ art.codigo_interno }}] {{ art.nombre }} (Stock: {{ art.stock_actual }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-white">Cantidad *</label>
-                        <input type="number" name="cantidad" step="0.01" min="0.01" class="form-control" placeholder="Ej: 5" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-white">Motivo / Destino / Responsable que retira *</label>
-                        <textarea name="motivo" rows="3" class="form-control" placeholder="Ej: Retiro de materiales para Obra Chillán - Entregado a técnico Juan Pérez..." required></textarea>
-                    </div>
-                    <div class="small text-secondary">
-                        <i class="bi bi-person-check text-info me-1"></i>
-                        Se registrará automáticamente a nombre de: <strong class="text-white">{{ request.user.get_full_name|default:request.user.username }}</strong>
-                    </div>
-                </div>
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary fw-semibold">
-                        <i class="bi bi-check-lg me-1"></i> Guardar en Kardex
-                    </button>
-                </div>
-            </form>
         </div>
     </div>
 </div>
