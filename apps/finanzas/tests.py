@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.catalogo.models import Articulo, Categoria
+from apps.entidades.forms import CuentaForm
 from apps.entidades.models import ContactoEntidad, CuentaBancaria, Proveedor
 from apps.finanzas.models import ObservacionFactura, PagoProveedor, SaldoInicialEmpresa
 from apps.inventario.models import DetalleDocumento, DocumentoEntrada
@@ -66,17 +67,18 @@ class FinanzasAccesoRolTests(BaseFinanzasTestCase):
         self.client.force_login(self.user_finanzas)
         respuesta = self.client.get(reverse('finanzas:panel'))
         menu = respuesta.content.decode().split(
-            '<!-- Menú de Módulos según requerimientos FYAG -->',
+            '<!-- Menú dinámico por rol según Anexo C -->',
             1,
         )[1].split('</ul>', 1)[0]
 
+        # Desde la Etapa 2 cada rol ve solo su panel en el sidebar
         self.assertIn(f'href="{reverse("finanzas:panel")}"', menu)
-        self.assertIn(f'href="{reverse("lista_documentos")}"', menu)
+        self.assertIn(f'href="{reverse("finanzas:facturas_lista")}"', menu)
+        self.assertIn(f'href="{reverse("finanzas:pagos_lista")}"', menu)
         for opcion in (
             'Dashboard',
-            'Catálogo de Artículos',
             'Despachos a Obras',
-            'Kardex Inalterable',
+            'Inventario Físico',
             'Proveedores y Clientes',
             'Usuarios y Roles',
             'Auditoría',
@@ -128,13 +130,14 @@ class FinanzasAccesoRolTests(BaseFinanzasTestCase):
         respuesta = self.client.get(reverse('finanzas:panel'))
         self.assertEqual(respuesta.status_code, 200)
         menu = respuesta.content.decode().split(
-            '<!-- Menú de Módulos según requerimientos FYAG -->',
+            '<!-- Menú dinámico por rol según Anexo C -->',
             1,
         )[1].split('</ul>', 1)[0]
-        self.assertIn(f'href="{reverse("finanzas:panel")}"', menu)
-        self.assertIn(f'href="{reverse("lista_documentos")}"', menu)
-        self.assertNotIn('Dashboard', menu)
-        self.assertNotIn('Catálogo de Artículos', menu)
+        # El superusuario sin grupo entra con el panel de Gerencia
+        self.assertIn(f'href="{reverse("core:dashboard")}"', menu)
+        self.assertIn(f'href="{reverse("core:gestion_usuarios")}"', menu)
+        self.assertNotIn(f'href="{reverse("finanzas:panel")}"', menu)
+        self.assertNotIn('Despachos a Obras', menu)
 
 
 class FinanzasEntidadesTests(BaseFinanzasTestCase):
@@ -891,39 +894,23 @@ class FinanzasCuentaMaskingTests(BaseFinanzasTestCase):
         self.url = reverse('editar_entidad', args=[self.entidad.pk])
 
     def test_bodega_solo_ve_la_cuenta_enmascarada_y_no_puede_sobrescribirla(self):
-        self.client.force_login(self.user_bodega)
-        respuesta = self.client.get(self.url)
+        # editar_entidad es exclusiva de Finanzas, así que el enmascarado se prueba en el formulario
+        form = CuentaForm(instance=self.cuenta, user=self.user_bodega)
+        self.assertTrue(form.fields['numero_cuenta'].disabled)
+        self.assertEqual(form.initial['numero_cuenta'], '****5678')
 
-        self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, '****5678')
-        self.assertNotContains(respuesta, '0012345678')
-
-        respuesta_post = self.client.post(self.url, {
-            'rut': self.entidad.rut,
-            'razon_social': 'Proveedor actualizado SpA',
-            'nombre_fantasia': '',
-            'giro': '',
-            'tipo': Proveedor.Tipo.PROVEEDOR,
-            'telefono': '',
-            'email': '',
-            'direccion': '',
-            'contactos-TOTAL_FORMS': '0',
-            'contactos-INITIAL_FORMS': '0',
-            'contactos-MIN_NUM_FORMS': '0',
-            'contactos-MAX_NUM_FORMS': '1000',
-            'cuentas-TOTAL_FORMS': '1',
-            'cuentas-INITIAL_FORMS': '1',
-            'cuentas-MIN_NUM_FORMS': '0',
-            'cuentas-MAX_NUM_FORMS': '1000',
-            'cuentas-0-id': str(self.cuenta.pk),
-            'cuentas-0-entidad': str(self.entidad.pk),
-            'cuentas-0-banco': 'Banco de Prueba',
-            'cuentas-0-tipo_cuenta': CuentaBancaria.TipoCuenta.CORRIENTE,
-            'cuentas-0-numero_cuenta': '99999999',
-            'cuentas-0-email_pago': '',
-        })
-
-        self.assertRedirects(respuesta_post, reverse('lista_entidades'))
+        form_post = CuentaForm(
+            data={
+                'banco': 'Banco de Prueba',
+                'tipo_cuenta': CuentaBancaria.TipoCuenta.CORRIENTE,
+                'numero_cuenta': '99999999',
+                'email_pago': '',
+            },
+            instance=self.cuenta,
+            user=self.user_bodega,
+        )
+        self.assertTrue(form_post.is_valid(), form_post.errors)
+        form_post.save()
         self.cuenta.refresh_from_db()
         self.assertEqual(self.cuenta.numero_cuenta, '0012345678')
 

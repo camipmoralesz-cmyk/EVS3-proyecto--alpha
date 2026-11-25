@@ -484,7 +484,7 @@
 
 {% if request.user.is_authenticated %}
 <!-- Aviso de cierre de sesión por inactividad -->
-<div id="aviso-inactividad" class="alert alert-warning d-flex flex-column gap-2 mb-0" role="alert" aria-live="assertive" hidden>
+<div id="aviso-inactividad" class="alert alert-warning d-none d-flex flex-column gap-2 mb-0" role="alert" aria-live="assertive">
     <div class="fw-bold"><i class="bi bi-hourglass-split me-1"></i><span>Tu sesión está por cerrarse</span></div>
     <div class="small">
         <span>Por inactividad, la sesión se cerrará en</span>
@@ -745,9 +745,11 @@
         const segundos = document.getElementById('aviso-inactividad-segundos');
         if (!formLogout || !aviso) return;
 
+        // La página recién cargada parte con 0 segundos de inactividad
         let ultimaLocal = Date.now();
         let ultimoPing = Date.now();
         let cerrando = false;
+        try { localStorage.setItem(CLAVE, String(ultimaLocal)); } catch (e) {}
 
         function ultimaActividad() {
             let compartida = 0;
@@ -756,6 +758,7 @@
         }
 
         function registrarActividad() {
+            aviso.classList.add('d-none');
             const ahora = Date.now();
             if (ahora - ultimaLocal < 1000) return;   // evita escribir en cada movimiento del mouse
             ultimaLocal = ahora;
@@ -773,6 +776,7 @@
             ultimoPing = 0;           // fuerza la renovación en el servidor
             ultimaLocal = 0;
             registrarActividad();
+            aviso.classList.add('d-none');
         });
 
         registrarActividad();
@@ -785,9 +789,9 @@
                 formLogout.submit();
             } else if (inactivo >= AVISO) {
                 segundos.textContent = LIMITE - inactivo;
-                aviso.hidden = false;
+                aviso.classList.remove('d-none');
             } else {
-                aviso.hidden = true;
+                aviso.classList.add('d-none');
             }
         }, 1000);
     })();

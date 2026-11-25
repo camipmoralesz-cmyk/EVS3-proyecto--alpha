@@ -107,7 +107,8 @@ class PermisosTests(BaseBodega):
         self.assertEqual(self.client.get(reverse('crear_entidad')).status_code, 200)
 
     def test_catalogo_lo_escriben_bodega_y_finanzas(self):
-        for u, esperado in ((self.bodeguero, 200), (self.finanzas, 200), (self.supervisor, 403), (self.gerente, 403)):
+        # crear_articulo lleva @bloquear_escrituras_finanzas: Finanzas solo consulta el catálogo
+        for u, esperado in ((self.bodeguero, 200), (self.finanzas, 403), (self.supervisor, 403), (self.gerente, 403)):
             self.client.force_login(u)
             self.assertEqual(self.client.get(reverse('crear_articulo')).status_code, esperado, u)
 

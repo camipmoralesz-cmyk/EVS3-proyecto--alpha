@@ -43,8 +43,9 @@ def dashboard(request):
         .select_related('articulo', 'usuario', 'documento')
         .order_by('-fecha', '-id')[:8]
     )
+    # Solo movimientos de stock (los accesos al sistema no tienen artículo)
     movimientos_hoy = MovimientoInventario.objects.filter(
-        fecha__date=hoy
+        fecha__date=hoy, articulo__isnull=False
     ).count()
 
     obras_activas = Obra.objects.filter(estado=Obra.Estado.ACTIVA).count()
