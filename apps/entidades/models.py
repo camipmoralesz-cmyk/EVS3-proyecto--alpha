@@ -36,6 +36,14 @@ class Proveedor(models.Model):
     telefono = models.CharField(max_length=30, blank=True, null=True, verbose_name="Teléfono")
     email = models.EmailField(blank=True, null=True, verbose_name="Correo Electrónico")
     direccion = models.CharField(max_length=200, blank=True, null=True, verbose_name="Dirección")
+    # Ubicación y representante legal (Anexo C)
+    region = models.CharField(max_length=60, blank=True, default='', verbose_name="Región")
+    comuna = models.CharField(max_length=60, blank=True, default='', verbose_name="Comuna")
+    ciudad = models.CharField(max_length=60, blank=True, default='', verbose_name="Ciudad")
+    representante_legal_nombre = models.CharField(max_length=150, blank=True, default='',
+                                                  verbose_name="Nombre del representante legal")
+    representante_legal_rut = models.CharField(max_length=12, blank=True, default='', validators=[validar_rut],
+                                               verbose_name="RUT del representante legal")
     activo = models.BooleanField(default=True, verbose_name="Activo")
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
@@ -62,6 +70,8 @@ class Proveedor(models.Model):
         # Segunda barrera: cualquier camino que guarde la ficha la deja canónica.
         if self.rut:
             self.rut = rut_canonico(self.rut)
+        if self.representante_legal_rut:
+            self.representante_legal_rut = rut_canonico(self.representante_legal_rut)
         super().save(*args, **kwargs)
 
 
@@ -71,6 +81,7 @@ class ContactoEntidad(models.Model):
     class Cargo(models.TextChoices):
         COMERCIAL = 'COMERCIAL', 'Ejecutivo comercial'
         FINANZAS = 'FINANZAS', 'Contacto de finanzas'
+        PROYECTOS = 'PROYECTOS', 'Encargado de proyectos'
         OTRO = 'OTRO', 'Otro'
 
     entidad = models.ForeignKey(Proveedor, on_delete=models.CASCADE, related_name='contactos', verbose_name="Entidad")

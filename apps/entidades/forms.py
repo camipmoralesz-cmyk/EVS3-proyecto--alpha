@@ -22,6 +22,11 @@ class ProveedorForm(forms.ModelForm):
             'telefono',
             'email',
             'direccion',
+            'region',
+            'comuna',
+            'ciudad',
+            'representante_legal_nombre',
+            'representante_legal_rut',
         ]
         widgets = {
             'rut': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 76.543.210-3'}),
@@ -32,6 +37,11 @@ class ProveedorForm(forms.ModelForm):
             'telefono': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: +56 42 222 3344'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
             'direccion': forms.TextInput(attrs={'class': 'form-control'}),
+            'region': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Región de Ñuble'}),
+            'comuna': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Chillán'}),
+            'ciudad': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Chillán'}),
+            'representante_legal_nombre': forms.TextInput(attrs={'class': 'form-control'}),
+            'representante_legal_rut': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 12.345.678-5'}),
         }
 
     # Validación del RUT: primero se revisa formato y dígito verificador
@@ -48,6 +58,14 @@ class ProveedorForm(forms.ModelForm):
         if qs.exists():
             raise forms.ValidationError("Ya existe una ficha registrada con este RUT.")
         return rut
+
+    # El RUT del representante legal es opcional: si viene, se valida y se canoniza.
+    def clean_representante_legal_rut(self):
+        rut = self.cleaned_data.get('representante_legal_rut')
+        if not rut:
+            return ''
+        validar_rut(rut)
+        return rut_canonico(rut)
 
 
 class ContactoForm(forms.ModelForm):
