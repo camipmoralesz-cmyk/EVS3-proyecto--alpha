@@ -15,14 +15,9 @@ from apps.entidades.models import Proveedor
 from apps.finanzas.utils import bloquear_escrituras_finanzas
 from apps.usuarios.roles import rol_requerido
 from .forms import DocumentoEntradaForm
-from .models import DetalleDocumento, DocumentoEntrada, MovimientoInventario
+from .models import DocumentoEntrada, MovimientoInventario
 from .permisos import bodega_requerida, lectura_cardex, lectura_inventario
-from .services import (
-    calcular_descuentos_sucesivos,
-    calcular_subtotal_linea,
-    confirmar_documento_borrador,
-    registrar_documento_entrada,
-)
+from .services import confirmar_documento_borrador, registrar_documento_entrada
 
 logger = logging.getLogger(__name__)
 

@@ -65,6 +65,22 @@ pip install -r requirements.txt
 
 Copie `.env.example` como `.env` en la raíz del proyecto y complételo. El archivo `.env` está en `.gitignore` y **nunca** debe subirse al repositorio.
 
+**Seguridad y dominios**
+
+| Variable | Valor por defecto | Descripción |
+|---|---|---|
+| `SECRET_KEY` | Clave de desarrollo (solo si `DEBUG=True`) | Clave secreta de Django. Con `DEBUG=False` es obligatoria: si falta, el sistema no arranca. |
+| `DEBUG` | `True` | Modo depuración. Acepta `true`, `1` o `yes`; cualquier otro valor lo desactiva. |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Dominios desde los que se puede acceder, separados por coma. |
+
+```env
+SECRET_KEY=una-clave-larga-y-aleatoria
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+```
+
+**Base de datos**
+
 La base de datos se elige según las variables definidas:
 
 | Variables | Base de datos |

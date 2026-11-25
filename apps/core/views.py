@@ -26,6 +26,7 @@ ROLES_SISTEMA = [
     ('Supervisor de Obras', 'Supervisor de Obras'),
     ('Técnico', 'Técnico en Terreno'),
     ('Consulta', 'Consulta / Auditoría (Solo Lectura)'),
+    ('Auditor', 'Auditor Interno / Fiscalización'),
 ]
 
 @rol_requerido('gerencia', 'bodega', 'finanzas', 'supervisor')

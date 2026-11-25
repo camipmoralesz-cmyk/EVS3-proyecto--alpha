@@ -21,9 +21,9 @@ def lista_entidades(request):
     q = request.GET.get('q', '').strip()
     tipo = request.GET.get('tipo', '').strip()
 
-    # prefetch_related trae los contactos en una sola consulta adicional, así
-    # contar contactos por fila en la tabla no hace N consultas extras.
-    entidades = Proveedor.objects.prefetch_related('contactos').all()
+    # prefetch_related trae contactos y cuentas en consultas adicionales fijas, así
+    # la tabla no hace N consultas extras por fila.
+    entidades = Proveedor.objects.prefetch_related('contactos', 'cuentas').all()
 
     if tipo in Proveedor.Tipo.values:
         entidades = entidades.filter(tipo=tipo)

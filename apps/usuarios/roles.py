@@ -54,6 +54,7 @@ ROLES = [
     },
     {
         'id': 'auditor',
+        'group_name': 'Auditor',
         'name': 'Auditor Interno / Fiscalización',
         'badge': 'Solo Lectura & Cardex',
         'description': 'Fiscalización de Cardex inmutable, bitácora de cambios, logs de acceso y exportación.',
@@ -69,7 +70,8 @@ ALIAS_ROLES = {
     'bodega': ('bodega', 'Bodega / Logística', 'Bodega Logistica', 'Encargado de Bodega / Logística'),
     'supervisor': ('supervisor', 'Supervisor de Obras', 'Supervisor de Obra'),
     'tecnico': ('tecnico', 'Técnico', 'Tecnico'),
-    'consulta': ('consulta', 'Consulta', 'Auditor', 'auditor'),
+    'consulta': ('consulta', 'Consulta'),
+    'auditor': ('auditor', 'Auditor', 'AUDITOR', 'Auditor Interno', 'Auditor Interno / Fiscalización'),
 }
 
 _GRUPO_A_ROL_ID = {}
@@ -85,15 +87,15 @@ def normalizar_rol_id(nombre_o_id):
     return _GRUPO_A_ROL_ID.get(str(nombre_o_id).strip().lower())
 
 
-def _nombres_grupo_para(ids):
-    nombres = set()
-    for rol_id in ids:
-        nombres.add(rol_id)
-        canon = normalizar_rol_id(rol_id)
+def _roles_de_grupos(user):
+    """Ids canónicos de los grupos del usuario. Se compara en Python porque
+    name__in en la BD distingue mayúsculas ('AUDITOR' vs 'Auditor')."""
+    ids = set()
+    for nombre in user.groups.values_list('name', flat=True):
+        canon = normalizar_rol_id(nombre)
         if canon:
-            nombres.update(ALIAS_ROLES.get(canon, ()))
-        nombres.update(ALIAS_ROLES.get(rol_id, ()))
-    return nombres
+            ids.add(canon)
+    return ids
 
 
 def tiene_rol(user, *ids):
@@ -102,7 +104,8 @@ def tiene_rol(user, *ids):
         return False
     if user.is_superuser:
         return True
-    return user.groups.filter(name__in=_nombres_grupo_para(ids)).exists()
+    pedidos = {normalizar_rol_id(i) for i in ids} - {None}
+    return bool(_roles_de_grupos(user) & pedidos)
 
 
 def roles_de(user):
@@ -111,8 +114,8 @@ def roles_de(user):
         return []
     if user.is_superuser:
         return list(ROLES)
-    grupos = set(user.groups.values_list('name', flat=True))
-    return [r for r in ROLES if grupos.intersection(_nombres_grupo_para([r['id']]))]
+    ids = _roles_de_grupos(user)
+    return [r for r in ROLES if r['id'] in ids]
 
 
 def rol_requerido(*ids):

@@ -227,12 +227,13 @@ def lista_restock(request):
         'articulos': Articulo.objects.filter(activo=True).order_by('nombre'),
         'proveedores': Proveedor.objects.filter(tipo=Proveedor.Tipo.PROVEEDOR, activo=True).order_by('razon_social'),
         'puede_solicitar': puede_solicitar,
-        'puede_aprobar': tiene_rol(request.user, 'finanzas', 'gerencia'),
+        # Los flags solo ocultan botones; los endpoints validan el rol por su cuenta
+        'puede_aprobar': tiene_rol(request.user, 'finanzas'),
         'puede_recibir': tiene_rol(request.user, 'tecnico', 'bodega'),
     })
 
 
-@rol_requerido('finanzas', 'gerencia')
+@rol_requerido('finanzas')
 @require_POST
 def aprobar_restock_finanzas(request, pk):
     aprobar = request.POST.get('decision') != 'rechazar'

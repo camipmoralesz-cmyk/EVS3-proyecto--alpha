@@ -914,6 +914,20 @@ class FinanzasCuentaMaskingTests(BaseFinanzasTestCase):
         self.cuenta.refresh_from_db()
         self.assertEqual(self.cuenta.numero_cuenta, '0012345678')
 
+        # Petición real: en el listado de entidades Bodega solo ve los últimos 4 dígitos
+        self.client.force_login(self.user_bodega)
+        respuesta = self.client.get(reverse('lista_entidades'))
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, '****5678')
+        self.assertNotContains(respuesta, '0012345678')
+
+    def test_finanzas_ve_el_numero_completo_en_lista_entidades(self):
+        self.client.force_login(self.user_finanzas)
+        respuesta = self.client.get(reverse('lista_entidades'))
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, '0012345678')
+        self.assertNotContains(respuesta, '****5678')
+
     def test_finanzas_y_superusuario_ven_el_numero_completo(self):
         for usuario in (self.user_finanzas, self.superuser):
             with self.subTest(usuario=usuario.username):

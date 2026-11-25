@@ -10,10 +10,11 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.catalogo.models import Articulo
+from apps.usuarios.roles import ALIAS_ROLES
 from apps.entidades.models import Proveedor
 from apps.obras.models import Obra
 from .models import (
-    DetalleDocumento, DetalleSesionInventario, DetalleSolicitud, Despacho, DocumentoEntrada,
+    DetalleDocumento, DetalleSesionInventario, Despacho, DocumentoEntrada,
     MovimientoInventario as M, OrdenRestock, SesionInventario, SolicitudDespacho,
 )
 
@@ -273,8 +274,10 @@ def _validar_firma(firma):
 
 
 def tecnicos_disponibles():
-    """Usuarios activos del grupo 'tecnico' (receptores de materiales)."""
-    return get_user_model().objects.filter(is_active=True, groups__name='tecnico').distinct().order_by('first_name', 'username')
+    """Usuarios activos con rol técnico (receptores de materiales), con cualquiera de
+    los nombres de grupo registrados: 'tecnico', 'Técnico' o 'Tecnico'."""
+    return (get_user_model().objects.filter(is_active=True, groups__name__in=ALIAS_ROLES['tecnico'])
+            .distinct().order_by('first_name', 'username'))
 
 
 def _obtener_tecnico(tecnico_id):
@@ -552,6 +555,8 @@ def resolver_orden_restock(orden_id, usuario, aprobar, observacion=''):
         raise ValidationError("La orden de restock no existe.")
     if orden.estado != OrdenRestock.ESTADO_PENDIENTE_FINANZAS:
         raise ValidationError("Solo se pueden resolver órdenes pendientes de aprobación de Finanzas.")
+    if orden.solicitado_por_id and orden.solicitado_por_id == getattr(usuario, 'pk', None):
+        raise ValidationError("Por segregación de funciones, quien solicita el restock no puede aprobar su propio presupuesto.")
     observacion = (observacion or '').strip()
     if not aprobar and len(observacion) < MIN_JUSTIFICACION:
         raise ValidationError(f"Indique el motivo del rechazo (mínimo {MIN_JUSTIFICACION} caracteres).")
@@ -574,6 +579,8 @@ def recibir_orden_restock(orden_id, usuario, observacion=''):
         raise ValidationError("La orden de restock no existe.")
     if orden.estado != OrdenRestock.ESTADO_APROBADA_FINANZAS:
         raise ValidationError("Solo se puede ingresar al stock una orden con presupuesto aprobado por Finanzas.")
+    if orden.aprobado_por_id and orden.aprobado_por_id == getattr(usuario, 'pk', None):
+        raise ValidationError("Por segregación de funciones, quien aprobó el presupuesto en Finanzas no puede confirmar la recepción física.")
 
     movimiento = registrar_movimiento(
         orden.articulo_id, M.TIPO_ENTRADA, orden.cantidad, usuario,

@@ -33,6 +33,8 @@ def _url_para_rol_id(rol_id):
         return reverse('obras:lista_hojas_servicio')
     if rol_id == 'consulta':
         return reverse('core:consulta_lectura', kwargs={'seccion': 'catalogo'})
+    if rol_id == 'auditor':
+        return reverse('auditoria:lista_cardex')
     return reverse('usuarios:inicio')
 
 
