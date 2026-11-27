@@ -11,11 +11,22 @@
             <p class="text-secondary mb-0">Registro inmutable de movimientos de bodega, control de ingreso/salida de personal y contra-asientos.</p>
         </div>
         <div class="d-flex gap-2">
+            {% if puede_anular %}
             <a href="{% url 'core:exportar_pdf' 'kardex' %}" target="_blank" class="btn btn-info fw-semibold">
                 <i class="bi bi-file-earmark-pdf-fill me-1"></i> Generar Reporte PDF
             </a>
+            {% else %}
+            <span class="badge bg-secondary fs-6 align-self-center"><i class="bi bi-eye me-1"></i>Modo solo lectura</span>
+            {% endif %}
         </div>
     </div>
+
+    {% if not puede_anular %}
+    <div class="alert alert-info py-2 small">
+        <i class="bi bi-info-circle-fill me-1"></i>
+        Consulta de auditoría: puedes revisar y filtrar todos los movimientos, pero no anular ni registrar movimientos.
+    </div>
+    {% endif %}
 
     {% if messages %}
         {% for message in messages %}
@@ -69,7 +80,7 @@
                             <th>Operación</th>
                             <th class="text-center">Cantidad</th>
                             <th>Motivo / Referencia</th>
-                            <th class="text-end">Anulación Controlada</th>
+                            <th class="text-end">{% if puede_anular %}Anulación Controlada{% else %}Estado{% endif %}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -152,7 +163,11 @@
                                 {% endif %}
                             </td>
                             <td class="text-end">
-                                {% if mov.articulo and mov.tipo_movimiento != 'ANULACION' %}
+                                {% if mov.articulo and mov.tipo_movimiento != 'ANULACION' and not puede_anular %}
+                                    <span class="badge bg-info bg-opacity-25 text-info border border-info">
+                                        Registro vigente
+                                    </span>
+                                {% elif mov.articulo and mov.tipo_movimiento != 'ANULACION' %}
                                     <button type="button" class="btn btn-sm btn-outline-danger"
                                             data-bs-toggle="modal"
                                             data-bs-target="#modalContraAsiento"
@@ -188,7 +203,8 @@
     </div>
 </div>
 
-<!-- Modal de Anulación Controlada (Contra-Asiento) -->
+<!-- Modal de Anulación Controlada (Contra-Asiento): solo para quien puede anular -->
+{% if puede_anular %}
 <div class="modal fade" id="modalContraAsiento" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content bg-dark text-light border-danger">
@@ -224,6 +240,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
