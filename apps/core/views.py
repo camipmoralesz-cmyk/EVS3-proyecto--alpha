@@ -14,7 +14,7 @@ from django.utils import timezone
 from apps.catalogo.models import Articulo
 from apps.inventario.models import DocumentoEntrada, MovimientoInventario, SesionInventario, SolicitudDespacho
 from apps.obras.models import Obra
-from apps.usuarios.roles import rol_requerido
+from apps.usuarios.roles import rol_requerido, tiene_rol
 
 from .models import ActaAprobacionInventario
 
@@ -200,8 +200,10 @@ def panel_alertas_stock(request):
 # ==========================================
 # 3. AUDITORÍA KARDEX Y CONTRA-ASIENTO (HU-12)
 # ==========================================
-@rol_requerido('gerencia')
+@rol_requerido('gerencia', 'auditor')
 def auditoria_kardex(request):
+    """Kardex global. El auditor lo consulta en solo lectura: no anula ni registra;
+    anular_movimiento_kardex sigue exigiendo Gerencia en el servidor."""
     q = request.GET.get('q', '').strip()
     tipo = request.GET.get('tipo', '').strip()
 
@@ -234,6 +236,7 @@ def auditoria_kardex(request):
         'q': q,
         'tipo': tipo,
         'tipos_movimiento': MovimientoInventario.TIPOS_MOVIMIENTO,
+        'puede_anular': tiene_rol(request.user, 'gerencia'),
     })
 
 

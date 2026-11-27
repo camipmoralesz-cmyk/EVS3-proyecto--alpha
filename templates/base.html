@@ -409,6 +409,11 @@
                 Consultas Globales y Auditoría
             </li>
             <li class="nav-item">
+                <a href="{% url 'core:auditoria_kardex' %}" class="nav-link {% if seccion_activa == 'auditoria' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-shield-lock me-2"></i> Kardex
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="{% url 'auditoria:lista_cardex' %}" class="nav-link {% if seccion_activa == 'cardex_auditoria' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-shield-check me-2"></i> Cardex Auditoría
                 </a>
