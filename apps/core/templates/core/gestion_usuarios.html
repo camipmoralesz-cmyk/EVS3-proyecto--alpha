@@ -103,7 +103,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="post">
+            <form method="post" id="formNuevoEmpleado">
                 {% csrf_token %}
                 <input type="hidden" name="accion" value="crear">
                 <div class="modal-body">
@@ -133,9 +133,48 @@
                             </select>
                         </div>
                         <div class="col-12">
-                            <label class="form-label small fw-semibold">Contraseña Inicial (Mín. 8 caracteres) *</label>
-                            <input type="password" name="password" minlength="8" class="form-control" required>
-                        </div>
+    <div class="col-12">
+    <label class="form-label small fw-semibold">
+        Contraseña Inicial (Mín. 12 caracteres) *
+    </label>
+
+<input
+    type="password"
+    name="password"
+    id="password"
+    minlength="12"
+    pattern="(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}"
+    class="form-control"
+    autocomplete="new-password"
+    title="La contraseña no cumple con los requisitos de seguridad."
+    required
+>
+
+    <div class="form-text text-light mt-2">
+        
+        <ul class="list-unstyled mt-2 mb-0">
+            <li id="req-length" class="text-danger">
+                <i class="bi bi-x-circle-fill"></i> Mínimo 12 caracteres
+            </li>
+            <li id="req-upper" class="text-danger">
+                <i class="bi bi-x-circle-fill"></i> Una letra mayúscula
+            </li>
+            <li id="req-lower" class="text-danger">
+                <i class="bi bi-x-circle-fill"></i> Una letra minúscula
+            </li>
+            <li id="req-number" class="text-danger">
+                <i class="bi bi-x-circle-fill"></i> Un número
+            </li>
+            <li id="req-special" class="text-danger">
+                <i class="bi bi-x-circle-fill"></i> Un carácter especial
+            </li>
+        </ul>
+        <small class="text-secondary">
+            También se rechazarán contraseñas comunes o demasiado similares
+            a los datos del usuario.
+        </small>
+    </div>
+</div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
@@ -148,4 +187,87 @@
         </div>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    const password = document.getElementById('password');
+    const formulario = document.getElementById('formNuevoEmpleado');
+
+    // Requisitos visuales de contraseña
+    const requisitos = {
+        'req-length': value => value.length >= 12,
+        'req-upper': value => /[A-Z]/.test(value),
+        'req-lower': value => /[a-z]/.test(value),
+        'req-number': value => /[0-9]/.test(value),
+        'req-special': value => /[^A-Za-z0-9]/.test(value)
+    };
+
+    function actualizarRequisitos() {
+        const valor = password.value;
+
+        for (const [id, validar] of Object.entries(requisitos)) {
+            const elemento = document.getElementById(id);
+            const cumple = validar(valor);
+
+            elemento.classList.toggle('text-success', cumple);
+            elemento.classList.toggle('text-danger', !cumple);
+
+            elemento.querySelector('i').className = cumple
+                ? 'bi bi-check-circle-fill'
+                : 'bi bi-x-circle-fill';
+        }
+    }
+
+    password.addEventListener('input', actualizarRequisitos);
+    actualizarRequisitos();
+
+    // Mensajes personalizados en español
+    formulario.querySelectorAll('[required]').forEach(campo => {
+
+        campo.addEventListener('invalid', function () {
+
+            if (campo.validity.valueMissing) {
+                campo.setCustomValidity(
+                    'Este campo es obligatorio.'
+                );
+
+            } else if (campo.type === 'email' && campo.validity.typeMismatch) {
+                campo.setCustomValidity(
+                    'Ingresa un correo válido, incluyendo @. Ejemplo: nombre@empresa.cl'
+                );
+
+            } else if (campo.name === 'password' && campo.validity.tooShort) {
+                 campo.setCustomValidity('La contraseña no cumple con los requisitos de seguridad.'
+             );
+
+            } else if (campo.name === 'password' && campo.validity.patternMismatch) {
+             campo.setCustomValidity('La contraseña no cumple con los requisitos de seguridad.'
+                );
+
+            } else {
+                campo.setCustomValidity(
+                    'El valor ingresado no es válido.'
+                );
+            }
+
+        });
+
+        campo.addEventListener('input', function () {
+            campo.setCustomValidity('');
+
+            if (campo.name === 'password' && campo.validity.patternMismatch) {
+                campo.setCustomValidity(
+                    'La contraseña no cumple con los requisitos de seguridad.'
+                );
+            }
+        });
+
+        campo.addEventListener('change', function () {
+            campo.setCustomValidity('');
+        });
+
+    });
+
+});
+</script>
 {% endblock %}
