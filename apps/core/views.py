@@ -2,6 +2,9 @@ from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User, Group
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import F, Q
@@ -116,15 +119,36 @@ def gestion_usuarios(request):
             if User.objects.filter(username=username).exists():
                 messages.error(request, f'El nombre de usuario "{username}" ya está registrado.')
             else:
-                user = User.objects.create_user(
-                    username=username, email=email, password=password,
-                    first_name=first_name, last_name=last_name
-                )
-                if rol_nombre:
-                    grupo, _ = Group.objects.get_or_create(name=rol_nombre)
-                    user.groups.add(grupo)
-                messages.success(request, f'Empleado {username} registrado con rol {rol_nombre}.')
-            return redirect('core:gestion_usuarios')
+                try:
+                    usuario_temporal = User(
+                        username=username,
+                        email=email,
+                        first_name=first_name,
+                        last_name=last_name
+                    )
+
+                    validate_password(password, user=usuario_temporal)
+
+                    user = User.objects.create_user(
+                        username=username,
+                        email=email,
+                        password=password,
+                        first_name=first_name,
+                        last_name=last_name
+                    )
+
+                    if rol_nombre:
+                        grupo, _ = Group.objects.get_or_create(name=rol_nombre)
+                        user.groups.add(grupo)
+
+                    messages.success(
+                        request,
+                        f'Empleado {username} registrado con rol {rol_nombre}.'
+                    )
+
+                except ValidationError as error:
+                    for mensaje in error.messages:
+                        messages.error(request, mensaje)
 
         elif accion == 'cambiar_rol':
             user_id = request.POST.get('user_id')
