@@ -6,6 +6,7 @@ from django.dispatch import receiver
 from django.forms.models import model_to_dict
 
 from apps.inventario.models import MovimientoInventario
+from apps.inventario.services import id_movimiento_anulado
 from .models import MovimientoCardex, BitacoraAuditoria, LogAcceso
 from .middleware import get_current_user, get_current_ip
 
@@ -41,9 +42,19 @@ def sincronizar_movimiento_a_cardex(sender, instance, created, **kwargs):
     if instance.articulo_id is None:
         return
 
-    # Evitar duplicados si el movimiento nació de una anulación en Auditoría
-    if instance.referencia and instance.referencia.startswith("ANULACION_AUDITORIA:"):
+    # Una sola copia por movimiento (el vínculo OneToOne también lo impide en la BD)
+    if MovimientoCardex.objects.filter(movimiento_inventario=instance).exists():
         return
+
+    # Un contra-asiento del Kardex queda en el Cardex como reversa del asiento original,
+    # así la anulación se detecta igual desde Kardex y desde Auditoría.
+    asiento_reversado = None
+    if instance.tipo_movimiento == MovimientoInventario.TIPO_ANULACION:
+        id_original = id_movimiento_anulado(instance.referencia)
+        if id_original:
+            asiento_reversado = MovimientoCardex.objects.filter(
+                movimiento_inventario_id=id_original, contra_asiento__isnull=True,
+            ).first()
 
     es_nota_credito = bool(instance.documento and instance.documento.es_nota_credito)
     if instance.tipo_movimiento == 'SALIDA':
@@ -70,7 +81,9 @@ def sincronizar_movimiento_a_cardex(sender, instance, created, **kwargs):
         obra=instance.obra,
         documento_referencia=doc_ref,
         justificacion=instance.referencia or f"Movimiento automático desde Inventario ({doc_ref or 'Sin documento'})",
-        es_reversa=False
+        es_reversa=asiento_reversado is not None,
+        movimiento_reversado=asiento_reversado,
+        movimiento_inventario=instance,
     )
 
 

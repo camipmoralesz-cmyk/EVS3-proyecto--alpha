@@ -1,12 +1,11 @@
 #Implementa la lógica atómica de anulación que valida el motivo, revierte el stock del artículo y registra la transacción inalterable en PostgreSQL (además del envío opcional del log de auditoría).
 import datetime
 from io import BytesIO
-from django.shortcuts import redirect, get_object_or_404
+from django.shortcuts import redirect
 from django.views.generic import ListView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 
@@ -19,7 +18,7 @@ from reportlab.lib import colors
 from apps.catalogo.models import Articulo
 from apps.usuarios.roles import tiene_rol
 from .models import MovimientoCardex, BitacoraAuditoria, LogAcceso
-from .forms import AnulacionControladaForm, FiltroCardexForm
+from .forms import FiltroCardexForm
 from .middleware import get_current_ip
 
 
@@ -88,69 +87,19 @@ class CardexListView(PuedeAuditarMixin, ListView):
         context['articulos'] = Articulo.objects.all().order_by('nombre')
         context['articulo_seleccionado'] = self.request.GET.get('articulo', '')
         context['form_filtros'] = FiltroCardexForm(self.request.GET)
-        context['form_anulacion'] = AnulacionControladaForm()
-        context['es_admin_general'] = usuario_es_admin_general(self.request.user)
         return context
 
 
 class AnularMovimientoView(SoloAdminGeneralMixin, View):
+    """El Cardex de Auditoría es de solo lectura para todos los perfiles. Las anulaciones
+    se hacen solo desde el Kardex de Gerencia (core:anular_movimiento), que usa
+    anular_movimiento_inventario() y deja el contra-asiento reflejado en este Cardex.
+    Se conserva la URL: los demás perfiles siguen recibiendo 403 y Gerencia es redirigida."""
+
     def post(self, request, *args, **kwargs):
-        form = AnulacionControladaForm(request.POST)
-        if not form.is_valid():
-            messages.error(request, "Debe ingresar un motivo válido de al menos 10 caracteres para anular.")
-            return redirect('auditoria:lista_cardex')
-
-        mov_id = form.cleaned_data['movimiento_id']
-        motivo = form.cleaned_data['motivo_anulacion']
-
-        with transaction.atomic():
-            mov_original = get_object_or_404(MovimientoCardex.objects.select_for_update(), pk=mov_id)
-
-            if mov_original.es_reversa or (hasattr(mov_original, 'contra_asiento') and mov_original.contra_asiento is not None):
-                messages.warning(request, f"El asiento #{mov_original.id} ya fue reversado anteriormente.")
-                return redirect('auditoria:lista_cardex')
-
-            articulo = Articulo.objects.select_for_update().get(pk=mov_original.articulo_id)
-            campo_stock = 'stock_fisico' if hasattr(articulo, 'stock_fisico') else 'stock_actual'
-            stock_previo = getattr(articulo, campo_stock)
-
-            cantidad_inversa = -mov_original.cantidad
-            nuevo_stock = stock_previo + cantidad_inversa
-
-            if nuevo_stock < 0:
-                messages.error(request, f"No se puede anular: el stock de '{articulo.nombre}' quedaría negativo ({nuevo_stock}).")
-                return redirect('auditoria:lista_cardex')
-
-            setattr(articulo, campo_stock, nuevo_stock)
-            articulo.save(update_fields=[campo_stock])
-
-            contra_asiento = MovimientoCardex.objects.create(
-                articulo=articulo,
-                tipo_movimiento='ANULACION',
-                cantidad=cantidad_inversa,
-                saldo_resultante=nuevo_stock,
-                valor_unitario=mov_original.valor_unitario,
-                usuario=request.user,
-                obra=mov_original.obra,
-                obra_referencia=mov_original.obra_referencia,
-                documento_referencia=mov_original.documento_referencia,
-                justificacion=f"ANULACIÓN ASIENTO #{mov_original.id}: {motivo}",
-                es_reversa=True,
-                movimiento_reversado=mov_original
-            )
-
-            BitacoraAuditoria.objects.create(
-                usuario=request.user,
-                ip_origen=get_current_ip(),
-                modulo='Auditoria',
-                accion='ANULAR',
-                modelo_afectado='MovimientoCardex',
-                objeto_id=str(mov_original.id),
-                descripcion=f"Contra-asiento #{contra_asiento.id} generado sobre movimiento #{mov_original.id} ({articulo.nombre}). Motivo: {motivo}"
-            )
-
-        messages.success(request, f"Contra-asiento #{contra_asiento.id} generado correctamente. Stock actualizado a {nuevo_stock}.")
-        return redirect('auditoria:lista_cardex')
+        messages.info(request, "El Cardex de Auditoría es de solo lectura. Las anulaciones se registran "
+                               "desde el Kardex de Gerencia.")
+        return redirect('core:auditoria_kardex')
 
 
 class BitacoraAuditoriaListView(PuedeAuditarMixin, ListView):

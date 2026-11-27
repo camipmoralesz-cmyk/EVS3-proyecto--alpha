@@ -191,6 +191,11 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a href="{% url 'auditoria:lista_cardex' %}" class="nav-link {% if seccion_activa == 'cardex_auditoria' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-shield-check me-2"></i> Cardex Auditoría
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="{% url 'core:aprobacion_inventarios' %}" class="nav-link {% if seccion_activa == 'aprobaciones' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-clipboard2-check me-2"></i> Aprobar Inventarios
                 </a>

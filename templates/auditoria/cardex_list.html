@@ -5,7 +5,7 @@
 
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
         <div>
-            <h2 class="fw-bold text-dark mb-1">Cardex Inmutable de Bodega</h2>
+            <h2 class="fw-bold mb-1">Cardex Inmutable de Bodega</h2>
             <p class="text-muted mb-0">Libro histórico e inalterable de movimientos, valorización y trazabilidad operacional (RF06)</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
@@ -36,7 +36,7 @@
             <div class="card border-0 shadow-sm border-start border-primary border-4">
                 <div class="card-body py-3">
                     <div class="text-muted small fw-semibold">Asientos Filtrados</div>
-                    <div class="fs-4 fw-bold text-dark">{{ page_obj.paginator.count }}</div>
+                    <div class="fs-4 fw-bold text-primary">{{ page_obj.paginator.count }}</div>
                 </div>
             </div>
         </div>
@@ -52,7 +52,7 @@
             <div class="card border-0 shadow-sm border-start border-warning border-4">
                 <div class="card-body py-3">
                     <div class="text-muted small fw-semibold">Artículos en Catálogo</div>
-                    <div class="fs-4 fw-bold text-dark">{{ articulos|length }}</div>
+                    <div class="fs-4 fw-bold text-warning">{{ articulos|length }}</div>
                 </div>
             </div>
         </div>
@@ -61,7 +61,7 @@
                 <div class="card-body py-3">
                     <div class="text-muted small fw-semibold">Perfil Activo</div>
                     <div class="fs-6 fw-bold text-success mt-1">
-                        {% if es_admin_general %}Admin / Gerencia (Con Reversa){% else %}Auditoría (Solo Lectura){% endif %}
+                        Solo Lectura
                     </div>
                 </div>
             </div>
@@ -125,7 +125,7 @@
                         <th>Usuario</th>
                         <th>Doc / Obra</th>
                         <th>Justificación</th>
-                        {% if es_admin_general %}<th class="text-center">Control</th>{% endif %}
+                        <th class="text-center">Estado</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -153,24 +153,16 @@
                                 {% if m.obra_referencia %}<span class="badge bg-light text-dark border">{{ m.obra_referencia }}</span>{% endif %}
                             </td>
                             <td><small>{{ m.justificacion }}</small></td>
-                            {% if es_admin_general %}
-                                <td class="text-center">
-                                    {% if m.contra_asiento %}
-                                        <span class="badge bg-secondary">Anulado por #{{ m.contra_asiento.id }}</span>
-                                    {% elif m.es_reversa %}
-                                        <span class="badge bg-dark">Reversa</span>
-                                    {% else %}
-                                        <button type="button"
-                                                class="btn btn-outline-danger btn-sm"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#modalAnular"
-                                                data-mov-id="{{ m.id }}"
-                                                data-mov-desc="#{{ m.id }} - {{ m.articulo.nombre }} ({{ m.cantidad }})">
-                                            Anular
-                                        </button>
-                                    {% endif %}
-                                </td>
-                            {% endif %}
+                            {# El Cardex es de solo lectura para todos: las anulaciones se hacen en el Kardex de Gerencia #}
+                            <td class="text-center">
+                                {% if m.contra_asiento %}
+                                    <span class="badge bg-secondary">Anulado por #{{ m.contra_asiento.id }}</span>
+                                {% elif m.es_reversa %}
+                                    <span class="badge bg-dark">Reversa</span>
+                                {% else %}
+                                    <span class="badge bg-info text-dark">Vigente</span>
+                                {% endif %}
+                            </td>
                         </tr>
                     {% empty %}
                         <tr>
@@ -185,46 +177,4 @@
     </div>
 </div>
 
-{% if es_admin_general %}
-<!-- Modal Contra-Asiento -->
-<div class="modal fade" id="modalAnular" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <form method="post" action="{% url 'auditoria:anular_movimiento' %}" class="modal-content">
-            {% csrf_token %}
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Generar Contra-Asiento de Anulación</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="small text-muted">
-                    El registro original <strong>no será eliminado</strong> (principio Append-Only). Se creará un movimiento inverso que revertirá el stock.
-                </p>
-                <div class="alert alert-light border fw-semibold" id="detalleMovAnular"></div>
-                {{ form_anulacion.movimiento_id }}
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Motivo obligatorio de anulación</label>
-                    {{ form_anulacion.motivo_anulacion }}
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                <button type="submit" class="btn btn-danger btn-sm">Confirmar Contra-Asiento</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const modalAnular = document.getElementById('modalAnular');
-    if (modalAnular) {
-        modalAnular.addEventListener('show.bs.modal', function (event) {
-            const btn = event.relatedTarget;
-            document.getElementById('id_movimiento_id').value = btn.getAttribute('data-mov-id');
-            document.getElementById('detalleMovAnular').textContent = 'Asiento a reversar: ' + btn.getAttribute('data-mov-desc');
-        });
-    }
-});
-</script>
-{% endif %}
 {% endblock %}

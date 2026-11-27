@@ -57,6 +57,16 @@ class MovimientoCardex(models.Model):
         related_name='contra_asiento'
     )
 
+    # Movimiento del Kardex operativo que originó este asiento. Lo fija la señal al
+    # crear la fila; las filas antiguas sin vínculo no se pueden anular desde Auditoría.
+    movimiento_inventario = models.OneToOneField(
+        'inventario.MovimientoInventario',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='asiento_cardex',
+    )
+
     objects = AppendOnlyQuerySet.as_manager()
 
     class Meta:

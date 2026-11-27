@@ -102,12 +102,6 @@ def registro_documento(request):
         messages.error(request, f"Error al registrar documento: {error_msg}")
 
     form = DocumentoEntradaForm()
-    proveedores = Proveedor.objects.filter(
-        activo=True,
-        tipo=Proveedor.Tipo.PROVEEDOR,
-    )
-    articulos = Articulo.objects.all().order_by('nombre')
-    
     return render(request, 'inventario/registro_documento.html', {
         'form': form,
         'proveedores': form.fields['proveedor'].queryset,

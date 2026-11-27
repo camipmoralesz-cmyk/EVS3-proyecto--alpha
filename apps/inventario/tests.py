@@ -10,10 +10,13 @@ from apps.inventario.models import (
     MovimientoInventario,
 )
 from apps.inventario.services import (
+    AnulacionError,
+    anular_movimiento_inventario,
     calcular_descuentos_sucesivos,
     calcular_subtotal_linea,
     confirmar_documento_borrador,
-    registrar_documento_entrada
+    registrar_documento_entrada,
+    registrar_movimiento,
 )
 
 class CalculoDescuentosTest(TestCase):
@@ -259,3 +262,67 @@ class TransaccionInventarioTest(TestCase):
         self.articulo1.refresh_from_db()
         self.assertEqual(self.articulo1.stock_actual, Decimal('105.00'))
         self.assertEqual(MovimientoInventario.objects.filter(documento=documento).count(), 2)
+
+
+class AnulacionMovimientoServicioTest(TestCase):
+    """anular_movimiento_inventario(): punto único de los contra-asientos."""
+
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.usuario = User.objects.create_user('gerente_servicio', password='x')
+        cls.categoria = Categoria.objects.create(nombre='Repuestos')
+
+    def setUp(self):
+        self.articulo = Articulo.objects.create(
+            codigo_interno='SV-1', nombre='Filtro', categoria=self.categoria,
+            ubicacion_bodega='Pasillo E', stock_actual=Decimal('90'), pmp_costo_actual=1500)
+        self.entrada = registrar_movimiento(self.articulo.pk, MovimientoInventario.TIPO_ENTRADA, 10,
+                                            self.usuario, 'Entrada de prueba', costo=1500)
+
+    def stock(self):
+        self.articulo.refresh_from_db()
+        return self.articulo.stock_actual
+
+    def test_revierte_stock_y_deja_contra_asiento_en_kardex_cardex_y_bitacora(self):
+        from apps.auditoria.models import BitacoraAuditoria, MovimientoCardex
+        contra = anular_movimiento_inventario(self.entrada.pk, self.usuario, 'Error de digitación')
+        self.assertEqual(self.stock(), Decimal('90'))
+        self.assertEqual(contra.tipo_movimiento, MovimientoInventario.TIPO_ANULACION)
+        self.assertEqual((contra.stock_anterior, contra.stock_posterior), (Decimal('100'), Decimal('90')))
+        self.assertTrue(contra.referencia.startswith(f'ANULADO ID#{self.entrada.pk} '))
+        asiento = MovimientoCardex.objects.get(movimiento_inventario=contra)
+        self.assertTrue(asiento.es_reversa)
+        self.assertEqual(asiento.movimiento_reversado.movimiento_inventario, self.entrada)
+        self.assertTrue(BitacoraAuditoria.objects.filter(accion='ANULAR', objeto_id=str(self.entrada.pk)).exists())
+
+    def test_reversa_de_una_salida_suma_stock(self):
+        salida = registrar_movimiento(self.articulo.pk, MovimientoInventario.TIPO_AJUSTE_NEG, 4, self.usuario,
+                                      'Ajuste', justificacion='Conteo físico con faltante')
+        anular_movimiento_inventario(salida.pk, self.usuario, 'Conteo mal digitado')
+        self.assertEqual(self.stock(), Decimal('100'))
+
+    def test_rechazos(self):
+        anular_movimiento_inventario(self.entrada.pk, self.usuario, 'Primera anulación')
+        casos = [
+            (self.entrada.pk, 'Segunda anulación del mismo', 'ya_anulado'),
+            (MovimientoInventario.objects.get(tipo_movimiento='ANULACION').pk, 'Anular la anulación', 'es_anulacion'),
+            (self.entrada.pk, '   ', 'motivo'),
+            (self.entrada.pk, 'corto', 'motivo'),
+            (999999, 'Movimiento inexistente', 'no_existe'),
+        ]
+        for mov_id, motivo, codigo in casos:
+            with self.subTest(codigo=codigo):
+                with self.assertRaises(AnulacionError) as ctx:
+                    anular_movimiento_inventario(mov_id, self.usuario, motivo)
+                self.assertEqual(ctx.exception.codigo, codigo)
+        self.assertEqual(self.stock(), Decimal('90'))
+
+    def test_no_deja_stock_negativo(self):
+        registrar_movimiento(self.articulo.pk, MovimientoInventario.TIPO_AJUSTE_NEG, 95, self.usuario, 'Ajuste',
+                             justificacion='Conteo físico con faltante')
+        with self.assertRaises(AnulacionError) as ctx:
+            anular_movimiento_inventario(self.entrada.pk, self.usuario, 'Error de digitación')
+        self.assertEqual(ctx.exception.codigo, 'stock_negativo')
+        self.assertEqual(self.stock(), Decimal('5'))
+        self.assertFalse(MovimientoInventario.objects.filter(tipo_movimiento='ANULACION').exists())
