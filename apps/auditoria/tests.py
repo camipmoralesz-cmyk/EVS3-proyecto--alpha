@@ -9,7 +9,7 @@ from django.urls import reverse
 from apps.catalogo.models import Articulo, Categoria
 from apps.inventario.models import MovimientoInventario as M
 from apps.inventario.services import registrar_movimiento
-from .models import BitacoraAuditoria, LogAcceso, MovimientoCardex
+from .models import BitacoraAuditoria, LogAcceso
 
 User = get_user_model()
 
@@ -65,8 +65,8 @@ class AuditoriaSeguridadTests(TestCase):
 
 
 class AnulacionUnificadaTests(TestCase):
-    """Se anula solo desde el Kardex de Gerencia; el Cardex de Auditoría es de solo lectura
-    para todos y muestra el contra-asiento enlazado al asiento original."""
+    """Kardex y Cardex de Auditoría son la misma tabla (MovimientoInventario). Se anula solo
+    desde el Kardex de Gerencia; el Cardex es de solo lectura y muestra el contra-asiento."""
 
     @classmethod
     def setUpTestData(cls):
@@ -85,7 +85,6 @@ class AnulacionUnificadaTests(TestCase):
             codigo_interno='AN-1', nombre='Válvula', categoria=Categoria.objects.create(nombre='Válvulas'),
             ubicacion_bodega='Pasillo D', stock_actual=Decimal('90'))
         self.entrada = registrar_movimiento(self.articulo.pk, M.TIPO_ENTRADA, 10, self.bodeguero, 'Entrada de prueba')
-        self.asiento = MovimientoCardex.objects.get(movimiento_inventario=self.entrada)
         self.client.force_login(self.gerente)
 
     def stock(self):
@@ -95,9 +94,18 @@ class AnulacionUnificadaTests(TestCase):
     def anular_core(self, motivo='Error de digitación'):
         return self.client.post(reverse('core:anular_movimiento', args=[self.entrada.pk]), {'motivo': motivo})
 
-    def anular_auditoria(self, asiento=None, motivo='Error de digitación en la entrada'):
+    def anular_auditoria(self, motivo='Error de digitación en la entrada'):
         return self.client.post(reverse('auditoria:anular_movimiento'),
-                                {'movimiento_id': (asiento or self.asiento).pk, 'motivo_anulacion': motivo})
+                                {'movimiento_id': self.entrada.pk, 'motivo_anulacion': motivo})
+
+    def html_cardex(self):
+        return self.client.get(reverse('auditoria:lista_cardex')).content.decode()
+
+    def test_cardex_y_kardex_muestran_el_mismo_movimiento(self):
+        self.assertIn(f'#{self.entrada.pk}', self.html_cardex())
+        self.assertIn(f'#{self.entrada.pk}', self.client.get(reverse('core:auditoria_kardex')).content.decode())
+        # No existe una tabla aparte: solo hay un registro del movimiento
+        self.assertEqual(M.objects.filter(articulo=self.articulo).count(), 1)
 
     def test_anular_en_core_y_luego_en_auditoria_se_rechaza(self):
         self.assertEqual(self.stock(), Decimal('100'))
@@ -107,37 +115,53 @@ class AnulacionUnificadaTests(TestCase):
         r = self.anular_auditoria()
         self.assertRedirects(r, reverse('core:auditoria_kardex'))
         self.assertEqual(self.stock(), Decimal('90'))
-        self.assertEqual(M.objects.filter(tipo_movimiento=M.TIPO_ANULACION).count(), 1)
-        self.assertEqual(MovimientoCardex.objects.filter(tipo_movimiento='ANULACION').count(), 1)
-        # El contra-asiento copiado al Cardex queda enlazado al asiento original
-        contra = MovimientoCardex.objects.get(tipo_movimiento='ANULACION')
-        self.assertTrue(contra.es_reversa)
-        self.assertEqual(contra.movimiento_reversado, self.asiento)
-        self.assertEqual(self.asiento.contra_asiento, contra)
+        contra = M.objects.get(tipo_movimiento=M.TIPO_ANULACION)
+        self.assertEqual(contra.movimiento_anulado, self.entrada)
+        html = self.html_cardex()
+        self.assertIn(f'Anulado por #{contra.pk}', html)
+        self.assertIn(f'Reversa de #{self.entrada.pk}', html)
 
     def test_auditoria_no_anula_ni_siquiera_gerencia(self):
         r = self.anular_auditoria()
         self.assertRedirects(r, reverse('core:auditoria_kardex'))
         self.assertEqual(self.stock(), Decimal('100'))
         self.assertFalse(M.objects.filter(tipo_movimiento=M.TIPO_ANULACION).exists())
-        self.assertFalse(MovimientoCardex.objects.filter(tipo_movimiento='ANULACION').exists())
 
-    def test_cardex_es_solo_lectura_y_muestra_la_anulacion(self):
-        self.anular_core()
-        contra = MovimientoCardex.objects.get(tipo_movimiento='ANULACION')
-        for usuario in (self.gerente, self.auditor):
+    def test_pantalla_unica_gerencia_anula_y_el_resto_solo_lee(self):
+        url_anular = reverse('core:anular_movimiento', args=[self.entrada.pk])
+        # Las dos URL muestran la misma pantalla
+        for url in (reverse('auditoria:lista_cardex'), reverse('core:auditoria_kardex')):
+            with self.subTest(url=url):
+                html = self.client.get(url).content.decode()
+                self.assertIn('Kardex Inmutable de Bodega', html)
+                self.assertIn(url_anular, html)
+        for usuario in (self.auditor, self.consulta, self.bodeguero):
             with self.subTest(usuario=usuario.username):
                 self.client.force_login(usuario)
-                html = self.client.get(reverse('auditoria:lista_cardex')).content.decode()
-                self.assertNotIn('modalAnular', html)
+                html = self.html_cardex()
+                self.assertNotIn(url_anular, html)
                 self.assertNotIn(reverse('auditoria:anular_movimiento'), html)
-                self.assertIn(f'Anulado por #{contra.pk}', html)
+                self.assertIn('Vigente', html)
+                self.assertIn('Modo solo lectura', html)
 
-    def test_segunda_anulacion_en_core_se_rechaza(self):
+    def test_segunda_anulacion_se_rechaza_y_el_kardex_ya_no_ofrece_el_boton(self):
         self.anular_core()
+        contra = M.objects.get(tipo_movimiento=M.TIPO_ANULACION)
+        html = self.client.get(reverse('core:auditoria_kardex')).content.decode()
+        self.assertIn(f'Anulado por #{contra.pk}', html)
+        self.assertNotIn(reverse('core:anular_movimiento', args=[self.entrada.pk]), html)
+
         self.anular_core(motivo='Segundo intento de anulación')
         self.assertEqual(self.stock(), Decimal('90'))
         self.assertEqual(M.objects.filter(tipo_movimiento=M.TIPO_ANULACION).count(), 1)
+
+    def test_la_base_impide_dos_contra_asientos_del_mismo_movimiento(self):
+        from django.db import IntegrityError, transaction
+        self.anular_core()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            M.objects.create(articulo=self.articulo, tipo_movimiento=M.TIPO_ANULACION, cantidad=10,
+                             stock_anterior=90, stock_posterior=80, usuario=self.gerente,
+                             referencia='Duplicado', movimiento_anulado=self.entrada)
 
     def test_auditor_y_consulta_reciben_403_en_ambos_endpoints(self):
         for usuario in (self.auditor, self.consulta):
@@ -156,7 +180,6 @@ class AnulacionUnificadaTests(TestCase):
         self.anular_core()
         self.assertEqual(self.stock(), Decimal('5'))
         self.assertFalse(M.objects.filter(tipo_movimiento=M.TIPO_ANULACION).exists())
-        self.assertFalse(MovimientoCardex.objects.filter(tipo_movimiento='ANULACION').exists())
 
     def test_motivo_corto_en_kardex_se_rechaza(self):
         r = self.anular_core(motivo='qww')
@@ -164,12 +187,17 @@ class AnulacionUnificadaTests(TestCase):
         self.assertEqual(self.stock(), Decimal('100'))
         self.assertFalse(M.objects.filter(tipo_movimiento=M.TIPO_ANULACION).exists())
 
-    def test_anulacion_antigua_hecha_solo_en_auditoria_bloquea_el_kardex(self):
-        # Contra-asiento previo a la unificación: existe solo en el Cardex
-        MovimientoCardex.objects.create(
-            articulo=self.articulo, tipo_movimiento='ANULACION', cantidad=Decimal('-10'),
-            saldo_resultante=Decimal('90'), usuario=self.gerente, justificacion='Anulación antigua',
-            es_reversa=True, movimiento_reversado=self.asiento)
-        self.anular_core()
-        self.assertEqual(self.stock(), Decimal('100'))
-        self.assertFalse(M.objects.filter(tipo_movimiento=M.TIPO_ANULACION).exists())
+    def test_filtros_del_cardex_sobre_el_kardex(self):
+        r = self.client.get(reverse('auditoria:lista_cardex'), {'tipo_movimiento': M.TIPO_ENTRADA,
+                                                                'usuario': 'bodega_anula'})
+        self.assertEqual(list(r.context['movimientos']), [self.entrada])
+        r = self.client.get(reverse('auditoria:lista_cardex'), {'tipo_movimiento': M.TIPO_MERMA})
+        self.assertEqual(list(r.context['movimientos']), [])
+
+    def test_exportaciones_leen_el_kardex(self):
+        for nombre in ('auditoria:exportar_cardex_excel', 'auditoria:exportar_cardex_pdf'):
+            with self.subTest(exportacion=nombre):
+                r = self.client.get(reverse(nombre))
+                self.assertEqual(r.status_code, 200)
+        self.assertEqual(BitacoraAuditoria.objects.filter(accion='EXPORTAR',
+                                                          modelo_afectado='MovimientoInventario').count(), 2)

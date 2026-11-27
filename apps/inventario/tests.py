@@ -285,15 +285,16 @@ class AnulacionMovimientoServicioTest(TestCase):
         return self.articulo.stock_actual
 
     def test_revierte_stock_y_deja_contra_asiento_en_kardex_cardex_y_bitacora(self):
-        from apps.auditoria.models import BitacoraAuditoria, MovimientoCardex
+        from apps.auditoria.models import BitacoraAuditoria
         contra = anular_movimiento_inventario(self.entrada.pk, self.usuario, 'Error de digitación')
         self.assertEqual(self.stock(), Decimal('90'))
         self.assertEqual(contra.tipo_movimiento, MovimientoInventario.TIPO_ANULACION)
         self.assertEqual((contra.stock_anterior, contra.stock_posterior), (Decimal('100'), Decimal('90')))
         self.assertTrue(contra.referencia.startswith(f'ANULADO ID#{self.entrada.pk} '))
-        asiento = MovimientoCardex.objects.get(movimiento_inventario=contra)
-        self.assertTrue(asiento.es_reversa)
-        self.assertEqual(asiento.movimiento_reversado.movimiento_inventario, self.entrada)
+        # El contra-asiento queda enlazado a su original en la misma tabla
+        self.assertEqual(contra.movimiento_anulado, self.entrada)
+        self.entrada.refresh_from_db()
+        self.assertEqual(self.entrada.anulacion, contra)
         self.assertTrue(BitacoraAuditoria.objects.filter(accion='ANULAR', objeto_id=str(self.entrada.pk)).exists())
 
     def test_reversa_de_una_salida_suma_stock(self):

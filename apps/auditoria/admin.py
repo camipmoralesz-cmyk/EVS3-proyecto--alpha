@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import MovimientoCardex, BitacoraAuditoria, LogAcceso
+from .models import BitacoraAuditoria, LogAcceso
 
 
 class SoloLecturaAuditoriaAdmin(admin.ModelAdmin):
@@ -11,19 +11,6 @@ class SoloLecturaAuditoriaAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
-
-
-@admin.register(MovimientoCardex)
-class MovimientoCardexAdmin(SoloLecturaAuditoriaAdmin):
-    list_display = (
-        'id', 'fecha_hora', 'articulo', 'tipo_movimiento',
-        'cantidad', 'saldo_resultante', 'usuario', 'es_reversa'
-    )
-    list_filter = ('tipo_movimiento', 'es_reversa', 'fecha_hora')
-    search_fields = (
-        'articulo__nombre', 'justificacion', 'usuario__username',
-        'documento_referencia', 'obra_referencia'
-    )
 
 
 @admin.register(BitacoraAuditoria)

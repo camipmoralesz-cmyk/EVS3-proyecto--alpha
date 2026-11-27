@@ -64,6 +64,14 @@ class KardexAuditorSoloLecturaTests(TestCase):
         self.client.post(reverse('core:anular_movimiento', args=[self.mov.pk]), {'motivo': 'Error de digitación'})
         self.assertTrue(M.objects.filter(tipo_movimiento=M.TIPO_ANULACION).exists())
 
-    def test_otros_roles_siguen_sin_acceso(self):
+    def test_bodega_lee_el_kardex_unico_y_tecnico_no_accede(self):
+        # Kardex único: Bodega lo consulta en solo lectura; Técnico y Supervisor no lo ven
         self.client.force_login(self.bodeguero)
+        r = self.client.get(reverse('core:auditoria_kardex'))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Modo solo lectura')
+        self.assertNotContains(r, reverse('core:anular_movimiento', args=[self.mov.pk]))
+        tecnico = get_user_model().objects.create_user('tecnico_kardex', password='x')
+        tecnico.groups.add(Group.objects.create(name='tecnico'))
+        self.client.force_login(tecnico)
         self.assertEqual(self.client.get(reverse('core:auditoria_kardex')).status_code, 403)

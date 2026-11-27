@@ -1,5 +1,5 @@
 from django import forms
-from .models import MovimientoCardex
+from apps.inventario.models import MovimientoInventario
 
 
 class FiltroCardexForm(forms.Form):
@@ -8,7 +8,10 @@ class FiltroCardexForm(forms.Form):
     """
     tipo_movimiento = forms.ChoiceField(
         required=False,
-        choices=[('', 'Todos los tipos')] + list(MovimientoCardex._meta.get_field('tipo_movimiento').choices),
+        choices=[('', 'Todos los tipos')] + [
+            (valor, etiqueta) for valor, etiqueta in MovimientoInventario.TIPOS_MOVIMIENTO
+            if valor not in (MovimientoInventario.TIPO_INGRESO_SISTEMA, MovimientoInventario.TIPO_SALIDA_SISTEMA)
+        ],
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     fecha_inicio = forms.DateField(

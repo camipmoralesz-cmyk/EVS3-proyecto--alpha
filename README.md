@@ -24,7 +24,7 @@ Sistema web de gestión logística para **Frío y Agroindustria SpA (FYAG)**, em
 | **Inventario** (`apps/inventario`) | Ingreso de facturas, boletas, guías y notas de crédito; despachos a obra; mermas y devoluciones; inventario físico; restock. Todo cambio de stock pasa por un único punto de escritura (`registrar_movimiento()`). |
 | **Obras** (`apps/obras`) | Obras y servicios del Anexo C, solicitudes de materiales, hojas de servicio (horas hombre) y evaluación de rentabilidad. |
 | **Finanzas** (`apps/finanzas`) | Panel financiero, facturas, pagos a proveedores, presupuestos de obras y aprobación de restock. |
-| **Auditoría** (`apps/auditoria`) | Cardex inmutable (append-only), bitácora de cambios, registro de accesos y exportación a Excel y PDF. |
+| **Auditoría** (`apps/auditoria`) | Pantalla única del Kardex con filtros y exportación a Excel y PDF, bitácora de cambios y registro de accesos. |
 | **Core / Usuarios** (`apps/core`, `apps/usuarios`) | Dashboard gerencial, alertas de stock, aprobación de actas, login por cuenta y control de acceso por rol (RBAC). |
 
 **Principios de diseño**
@@ -167,7 +167,7 @@ Las pruebas crean una base temporal propia y no modifican los datos de desarroll
 | `supervisor` | `Alpha2026!` | Supervisor de Obras | Mis obras (`/obras/`) |
 | `tecnico` | `Alpha2026!` | Técnico | Hojas de servicio (`/obras/hojas-servicio/`) |
 | `consulta` | `Alpha2026!` | Consulta / Auditoría lectura | Consultas (`/consulta/catalogo/`) |
-| `auditor` | `Alpha2026!` | Auditor Interno / Fiscalización | Cardex de Auditoría (`/auditoria/cardex/`) |
+| `auditor` | `Alpha2026!` | Auditor Interno / Fiscalización | Kardex (`/auditoria/cardex/`) |
 | `camila_admin` | `admin123` | Superusuario (creado por `poblar_obras`) | Dashboard (`/`) |
 | `supervisor1` | `sup123` | Supervisor de Obras (creado por `poblar_obras`) | Mis obras (`/obras/`) |
 
@@ -185,7 +185,7 @@ Las pruebas crean una base temporal propia y no modifican los datos de desarroll
 Panel **Gestión Estratégica y Control** y **Consultas Globales**.
 
 1. **Dashboard:** indicadores de artículos, stock crítico, obras activas, movimientos del día y el **Indicador de Merma del Mes** (valor perdido en CLP, unidades y detalle).
-2. **Auditoría y Kardex:** revise todos los movimientos y genere un **contra-asiento** cuando un movimiento deba revertirse (motivo obligatorio de al menos 10 caracteres). Gerencia no mueve stock manualmente.
+2. **Kardex:** revise todos los movimientos con filtros y exportación, y genere un **contra-asiento** cuando un movimiento deba revertirse (motivo obligatorio de al menos 10 caracteres). Gerencia no mueve stock manualmente.
 3. **Aprobar Inventarios:** firme un acta (bodega, obra o auditoría mensual) y revise las sesiones de inventario físico cerradas.
 4. **Alertas de Stock:** artículos bajo el mínimo, reporte PDF de reposición y acceso a **Gestionar Restock**.
 5. **Usuarios y Roles:** cree cuentas, cambie roles y bloquee o active usuarios.
@@ -211,7 +211,7 @@ Panel **Gestión Estratégica y Control** y **Consultas Globales**.
 5. **Mermas y Devoluciones:** registre mermas, devoluciones desde obra o a proveedor y uso interno, siempre con justificación.
 6. **Inventario Físico:** por sector o con el **Checklist General de Bodega**.
 7. **Restock de Bodega:** solicite reposición de artículos.
-8. **Kardex (solo lectura)** y **Proveedores y Clientes:** consulta.
+8. **Kardex** (solo lectura, con filtros y exportación) y **Proveedores y Clientes:** consulta.
 
 ### 3.6 Supervisor de Obras (`supervisor`)
 
@@ -235,14 +235,13 @@ Ninguno de los dos perfiles puede anular ni registrar movimientos.
 **Consulta (`consulta`)**
 
 1. **Consultas Globales:** catálogo, facturas y proveedores sin opciones de edición.
-2. **Cardex Auditoría:** historial inmutable con filtros por artículo, tipo, fechas, usuario y documento, exportable a Excel y PDF.
+2. **Kardex:** historial inmutable con filtros por artículo, tipo, fechas, usuario y documento, exportable a Excel y PDF.
 
 **Auditor Interno / Fiscalización (`auditor`)**
 
-1. **Kardex:** el mismo Kardex de Gerencia en modo solo lectura, sin el botón de contra-asiento.
-2. **Cardex Auditoría:** historial inmutable con filtros, exportable a Excel y PDF. Es su panel inicial.
-3. **Bitácora de Cambios:** valores anteriores y nuevos de cada cambio registrado.
-4. **Registro de Accesos:** inicios de sesión exitosos y fallidos.
+1. **Kardex:** la misma pantalla de Gerencia en modo solo lectura, con filtros y exportación a Excel y PDF. Es su panel inicial.
+2. **Bitácora de Cambios:** valores anteriores y nuevos de cada cambio registrado.
+3. **Registro de Accesos:** inicios de sesión exitosos y fallidos.
 
 ---
 
@@ -317,18 +316,18 @@ En la barra superior (y arriba a la derecha en el login):
 
 Las preferencias se guardan en el navegador y se mantienen entre sesiones.
 
-### 4.7 Auditoría y contra-asientos del Cardex inmutable
+### 4.7 Kardex inmutable y contra-asientos
 
-- Cada movimiento de inventario se copia automáticamente al **Cardex de Auditoría** con su tipo, cantidad, saldo resultante, usuario, obra y documento.
+- Existe **un solo Kardex**: una tabla (`MovimientoInventario`) inmutable y append-only, y **una sola pantalla** para consultarla (`/auditoria/`; `/auditoria/cardex/` muestra la misma). La ven Gerencia, Finanzas, Bodega, Consulta y Auditor; Supervisor y Técnico no.
 - Los registros **no se pueden editar ni eliminar**, ni uno a uno ni de forma masiva.
-- Para corregir un error, Gerencia genera un **contra-asiento** desde el *Kardex* (`/auditoria/`). Es el único lugar donde se anula:
+- Solo **Gerencia** ve el botón de **contra-asiento** en esa pantalla; para el resto es de solo lectura (*Modo solo lectura*). Reglas de la anulación:
   - Cada movimiento admite **una sola anulación válida**; un segundo intento se rechaza.
-  - La anulación queda reflejada en **ambas vistas**: se registra en el Kardex operativo y se copia al Cardex de Auditoría enlazada al asiento original.
+  - El contra-asiento queda **enlazado a su movimiento original** (*Anulado por #…* / *Reversa de #…*). La base de datos impide un segundo contra-asiento del mismo movimiento.
   - El contra-asiento revierte el efecto en el stock y **no permite dejar saldo negativo**.
   - Exige un **motivo de al menos 10 caracteres** y queda en la bitácora.
-- El **Cardex de Auditoría** (`/auditoria/cardex/`) es de **solo lectura para todos los perfiles**, incluida Gerencia: muestra cada asiento como *Vigente*, *Anulado por #…* o *Reversa*.
+- La columna **Estado** muestra cada movimiento como *Vigente*, *Anulado por #…* o *Reversa de #…*, y la pantalla filtra por artículo, tipo, fechas, usuario y documento u obra.
 - La **bitácora** guarda los valores anteriores y nuevos de cada cambio en artículos, entidades, obras y documentos, y el **registro de accesos** guarda los inicios de sesión exitosos y fallidos.
-- El Cardex se puede exportar a **Excel** y **PDF**, y cada exportación queda registrada.
+- El Kardex se puede exportar a **Excel** y **PDF** (respetando los filtros), y cada exportación queda registrada en la bitácora.
 
 ---
 
@@ -337,7 +336,7 @@ Las preferencias se guardan en el navegador y se mantienen entre sesiones.
 ```
 EVS3-proyecto--alpha/
 ├── apps/
-│   ├── auditoria/    # Cardex inmutable, bitácora, accesos, exportaciones
+│   ├── auditoria/    # Pantalla única del Kardex, bitácora, accesos, exportaciones
 │   ├── catalogo/     # Artículos y categorías
 │   ├── core/         # Dashboard, alertas, actas, consultas
 │   ├── entidades/    # Proveedores y mandantes

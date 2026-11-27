@@ -1,7 +1,6 @@
 import base64
 import binascii
 import datetime
-import re
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
@@ -622,11 +621,10 @@ def confirmar_documento_borrador(documento_id, usuario):
 
 # ---------------------------------------------------------------------------
 # ANULACIÓN CONTROLADA (CONTRA-ASIENTO, HU-12)
-# Punto único para Kardex (core) y Cardex de Auditoría: ambos flujos llaman aquí,
-# así una anulación queda en las dos tablas y no se puede repetir desde la otra.
+# El Kardex (MovimientoInventario) es el único registro: el Cardex de Auditoría es otra
+# vista de la misma tabla. El contra-asiento apunta a su original con movimiento_anulado.
 # ---------------------------------------------------------------------------
 PREFIJO_ANULACION = "ANULADO ID#"
-_RE_ANULACION = re.compile(r'^ANULADO ID#(\d+) ')
 
 
 class AnulacionError(ValidationError):
@@ -638,27 +636,15 @@ class AnulacionError(ValidationError):
         self.datos = datos
 
 
-def id_movimiento_anulado(referencia):
-    """Id del movimiento original a partir de la referencia de un contra-asiento."""
-    coincidencia = _RE_ANULACION.match(referencia or '')
-    return int(coincidencia.group(1)) if coincidencia else None
-
-
 def movimiento_ya_anulado(mov):
-    """True si el movimiento ya tiene contra-asiento en el Kardex o en el Cardex de Auditoría
-    (incluye anulaciones antiguas hechas solo en Auditoría)."""
-    from apps.auditoria.models import MovimientoCardex
-
-    if M.objects.filter(tipo_movimiento=M.TIPO_ANULACION,
-                        referencia__startswith=f"{PREFIJO_ANULACION}{mov.pk} ").exists():
-        return True
-    return MovimientoCardex.objects.filter(movimiento_inventario=mov, contra_asiento__isnull=False).exists()
+    """True si el movimiento ya tiene su contra-asiento."""
+    return M.objects.filter(movimiento_anulado=mov).exists()
 
 
 @transaction.atomic
 def anular_movimiento_inventario(mov_id, usuario, motivo):
     """Genera el contra-asiento de un movimiento: revierte el stock, deja la ANULACION en el
-    Kardex (la señal la copia al Cardex enlazada al asiento original) y registra la bitácora."""
+    Kardex enlazada al original (movimiento_anulado) y registra la bitácora."""
     from apps.auditoria.middleware import get_current_ip
     from apps.auditoria.models import BitacoraAuditoria
 
@@ -701,6 +687,7 @@ def anular_movimiento_inventario(mov_id, usuario, motivo):
         cantidad=mov.cantidad, stock_anterior=stock_anterior, stock_posterior=nuevo_stock,
         costo_unitario=mov.costo_unitario or articulo.pmp_costo_actual or 0,
         usuario=usuario, referencia=detalle[:255], obra=mov.obra, justificacion=motivo,
+        movimiento_anulado=mov,
     )
     BitacoraAuditoria.objects.create(
         usuario=usuario, ip_origen=get_current_ip(), modulo='Inventario', accion='ANULAR',

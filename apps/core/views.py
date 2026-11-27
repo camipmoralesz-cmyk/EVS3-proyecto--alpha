@@ -5,7 +5,7 @@ from django.contrib.auth.models import User, Group
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.contrib import messages
-from django.db.models import F, Q
+from django.db.models import F
 from django.apps import apps
 from django.utils import timezone
 
@@ -13,7 +13,7 @@ from apps.catalogo.models import Articulo
 from apps.inventario.models import DocumentoEntrada, MovimientoInventario, SesionInventario, SolicitudDespacho
 from apps.inventario.services import MIN_JUSTIFICACION, AnulacionError, anular_movimiento_inventario
 from apps.obras.models import Obra
-from apps.usuarios.roles import rol_requerido, tiene_rol
+from apps.usuarios.roles import rol_requerido
 
 from .models import ActaAprobacionInventario
 
@@ -199,44 +199,11 @@ def panel_alertas_stock(request):
 # ==========================================
 # 3. AUDITORÍA KARDEX Y CONTRA-ASIENTO (HU-12)
 # ==========================================
-@rol_requerido('gerencia', 'auditor')
-def auditoria_kardex(request):
-    """Kardex global. El auditor lo consulta en solo lectura: no anula ni registra;
-    anular_movimiento_kardex sigue exigiendo Gerencia en el servidor."""
-    q = request.GET.get('q', '').strip()
-    tipo = request.GET.get('tipo', '').strip()
-
-    # Consulta global sin filtros restrictivos por usuario/estado para que
-    # el Administrador General visualice todos los movimientos y accesos.
-    movimientos = (
-        MovimientoInventario.objects
-        .select_related('articulo', 'usuario', 'documento')
-        .prefetch_related('usuario__groups')
-        .all()
-        .order_by('-fecha', '-id')
-    )
-
-    if q:
-        movimientos = movimientos.filter(
-            Q(articulo__nombre__icontains=q) |
-            Q(articulo__codigo_interno__icontains=q) |
-            Q(usuario__username__icontains=q) |
-            Q(usuario__first_name__icontains=q) |
-            Q(usuario__last_name__icontains=q) |
-            Q(referencia__icontains=q) |
-            Q(tipo_movimiento__icontains=q)
-        )
-
-    if tipo:
-        movimientos = movimientos.filter(tipo_movimiento=tipo)
-
-    return render(request, 'core/auditoria_kardex.html', {
-        'movimientos': movimientos,
-        'q': q,
-        'tipo': tipo,
-        'tipos_movimiento': MovimientoInventario.TIPOS_MOVIMIENTO,
-        'puede_anular': tiene_rol(request.user, 'gerencia'),
-    })
+def auditoria_kardex(request, *args, **kwargs):
+    """Pantalla única del Kardex (la misma de /auditoria/cardex/): filtros, exportaciones y,
+    solo para Gerencia, el contra-asiento. Los permisos los aplica la vista de auditoría."""
+    from apps.auditoria.views import CardexListView
+    return CardexListView.as_view()(request, *args, **kwargs)
 
 
 @rol_requerido('gerencia')

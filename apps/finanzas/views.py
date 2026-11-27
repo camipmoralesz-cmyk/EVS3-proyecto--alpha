@@ -4,7 +4,7 @@ import re
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.db import connection, transaction
+from django.db import transaction
 from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Replace
 from django.http import JsonResponse
@@ -31,15 +31,9 @@ from .models import PagoProveedor, SaldoInicialEmpresa
 
 
 def _obra_tiene_movimientos(obra):
-    """
-    Verifica de forma segura si la obra tiene movimientos en MovimientoCardex
-    (incluso si la tabla de auditoría aún no ha sido migrada).
-    """
-    tablas = connection.introspection.table_names()
-    if 'auditoria_movimientocardex' not in tablas:
-        return False
-    from apps.auditoria.models import MovimientoCardex
-    return MovimientoCardex.objects.filter(obra=obra).exists()
+    """True si la obra ya tiene movimientos en el Kardex (egresos, devoluciones, mermas)."""
+    from apps.inventario.models import MovimientoInventario
+    return MovimientoInventario.objects.filter(obra=obra).exists()
 
 
 @rol_requerido('finanzas')
