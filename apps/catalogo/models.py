@@ -20,6 +20,12 @@ class Articulo(models.Model):
     categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT, related_name="articulos")
     unidad_medida = models.CharField(max_length=10, choices=UNIDADES_CHOICES, default='UND')
     ubicacion_bodega = models.CharField(max_length=50, help_text="Ej: Pasillo 3 - Estante B")
+    # Datos del Anexo C: sector de la bodega, descripción y precio de lista
+    sector_bodega = models.CharField(max_length=50, blank=True, default='Bodega Central', verbose_name="Sector de bodega")
+    descripcion = models.TextField(blank=True, default='', verbose_name="Descripción")
+    precio_lista = models.IntegerField(default=0, verbose_name="Precio de lista (CLP)")
+    fecha_actualizacion_precio = models.DateTimeField(null=True, blank=True,
+                                                      verbose_name="Última actualización del precio de lista")
     
     # Control de Existencias y Umbrales
     stock_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0)

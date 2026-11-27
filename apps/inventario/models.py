@@ -289,6 +289,10 @@ class MovimientoInventario(models.Model):
         'SesionInventario', on_delete=models.PROTECT, null=True, blank=True,
         related_name='movimientos', verbose_name="Sesión de inventario físico"
     )
+    orden_restock = models.ForeignKey(
+        'OrdenRestock', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='movimientos', verbose_name="Orden de restock"
+    )
     justificacion = models.TextField(blank=True, default='', verbose_name="Justificación")
 
     objects = MovimientoQuerySet.as_manager()
@@ -454,3 +458,50 @@ class DetalleSesionInventario(models.Model):
         if SesionInventario.objects.filter(pk=self.sesion_id, estado=SesionInventario.Estado.CERRADA).exists():
             raise CardexInalterableError("La sesión está cerrada: el conteo no se puede modificar.")
         super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Restock: Bodega solicita -> Finanzas aprueba el presupuesto -> Técnico/Bodega recibe e ingresa
+# ---------------------------------------------------------------------------
+class OrdenRestock(models.Model):
+    ESTADO_PENDIENTE_FINANZAS = 'PENDIENTE_FINANZAS'
+    ESTADO_APROBADA_FINANZAS = 'APROBADA_FINANZAS'
+    ESTADO_INSERTADA = 'INSERTADA'
+    ESTADO_RECHAZADA = 'RECHAZADA'
+
+    ESTADOS = [
+        (ESTADO_PENDIENTE_FINANZAS, '1. Pendiente Aprobación Finanzas'),
+        (ESTADO_APROBADA_FINANZAS, '2. Presupuesto Aprobado (Pendiente Revisión Técnica)'),
+        (ESTADO_INSERTADA, '3. Revisado por Técnico e Insertado en Stock'),
+        (ESTADO_RECHAZADA, 'Rechazada por Finanzas'),
+    ]
+
+    articulo = models.ForeignKey(Articulo, on_delete=models.PROTECT, related_name='ordenes_restock')
+    proveedor = models.ForeignKey(Proveedor, on_delete=models.PROTECT, null=True, blank=True,
+                                  related_name='ordenes_restock')
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
+    costo_unitario = models.IntegerField(default=0, verbose_name="Costo unitario estimado (CLP)")
+    estado = models.CharField(max_length=25, choices=ESTADOS, default=ESTADO_PENDIENTE_FINANZAS)
+
+    solicitado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                       related_name='restocks_solicitados')
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='restocks_aprobados')
+    revisado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='restocks_revisados')
+    fecha_solicitud = models.DateTimeField(auto_now_add=True)
+    fecha_aprobacion = models.DateTimeField(null=True, blank=True)
+    fecha_recepcion = models.DateTimeField(null=True, blank=True)
+    observaciones = models.TextField(blank=True, default='')
+
+    class Meta:
+        verbose_name = "Orden de restock"
+        verbose_name_plural = "Órdenes de restock"
+        ordering = ['-fecha_solicitud']
+
+    @property
+    def monto_total(self):
+        return int(self.cantidad * self.costo_unitario)
+
+    def __str__(self):
+        return f"Restock #{self.pk} - {self.articulo.nombre} x {self.cantidad}"

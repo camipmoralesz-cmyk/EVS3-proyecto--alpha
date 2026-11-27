@@ -11,6 +11,8 @@ from apps.inventario.services import (
     calcular_descuentos_sucesivos,
     calcular_subtotal_linea,
 )
+from apps.obras.forms import CAMPOS_FINANCIEROS, WIDGETS_FINANCIEROS, CamposFinancierosMixin
+from apps.obras.forms import ObraForm as ObraBaseForm
 from apps.obras.models import Obra
 
 from .models import ObservacionFactura, PagoProveedor
@@ -83,12 +85,12 @@ class PagoProveedorForm(forms.ModelForm):
         return cleaned_data
 
 
-class PresupuestoObraForm(forms.ModelForm):
-    """Formulario exclusivo de Finanzas para editar el presupuesto_total de una Obra."""
+class PresupuestoObraForm(CamposFinancierosMixin, forms.ModelForm):
+    """Formulario de Finanzas para el presupuesto de una Obra y sus datos de rentabilidad."""
 
     class Meta:
         model = Obra
-        fields = ['presupuesto_total']
+        fields = ['presupuesto_total'] + CAMPOS_FINANCIEROS
         labels = {
             'presupuesto_total': 'Presupuesto Total (CLP)',
         }
@@ -99,11 +101,13 @@ class PresupuestoObraForm(forms.ModelForm):
                 'step': '0.01',
                 'placeholder': 'Ej: 25000000.00',
             }),
+            **WIDGETS_FINANCIEROS,
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['presupuesto_total'].required = True
+        self._preparar_campos_financieros()
 
     def clean_presupuesto_total(self):
         monto = self.cleaned_data.get('presupuesto_total')
@@ -112,25 +116,13 @@ class PresupuestoObraForm(forms.ModelForm):
         return monto
 
 
-class ObraForm(forms.ModelForm):
-    class Meta:
-        model = Obra
-        fields = ['nombre', 'mandante', 'presupuesto_total', 'estado']
+class ObraForm(ObraBaseForm):
+    """Alta de obra desde Finanzas: igual a la de Obras, pero el presupuesto es obligatorio."""
+
+    class Meta(ObraBaseForm.Meta):
         labels = {
-            'nombre': 'Nombre de la obra',
-            'mandante': 'Cliente mandante',
+            **ObraBaseForm.Meta.labels,
             'presupuesto_total': 'Presupuesto inicial (CLP)',
-            'estado': 'Estado',
-        }
-        widgets = {
-            'nombre': forms.TextInput(attrs={'class': 'form-control'}),
-            'mandante': forms.Select(attrs={'class': 'form-select'}),
-            'presupuesto_total': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': '0',
-                'step': '0.01',
-            }),
-            'estado': forms.Select(attrs={'class': 'form-select'}),
         }
 
     def __init__(self, *args, **kwargs):

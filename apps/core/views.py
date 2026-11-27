@@ -1,4 +1,5 @@
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required
@@ -11,8 +12,11 @@ from django.apps import apps
 from django.utils import timezone
 
 from apps.catalogo.models import Articulo
-from apps.inventario.models import DocumentoEntrada, MovimientoInventario, SolicitudDespacho
+from apps.inventario.models import DocumentoEntrada, MovimientoInventario, SesionInventario, SolicitudDespacho
 from apps.obras.models import Obra
+from apps.usuarios.roles import rol_requerido
+
+from .models import ActaAprobacionInventario
 
 # Mantiene compatibilidad retornando directamente el modelo Kardex de inventario
 def obtener_modelo_kardex():
@@ -25,9 +29,10 @@ ROLES_SISTEMA = [
     ('Supervisor de Obras', 'Supervisor de Obras'),
     ('Técnico', 'Técnico en Terreno'),
     ('Consulta', 'Consulta / Auditoría (Solo Lectura)'),
+    ('Auditor', 'Auditor Interno / Fiscalización'),
 ]
 
-@login_required
+@rol_requerido('gerencia', 'bodega', 'finanzas', 'supervisor')
 def dashboard(request):
     hoy = timezone.localdate()
     articulos = Articulo.objects.filter(activo=True)
@@ -42,8 +47,9 @@ def dashboard(request):
         .select_related('articulo', 'usuario', 'documento')
         .order_by('-fecha', '-id')[:8]
     )
+    # Solo movimientos de stock (los accesos al sistema no tienen artículo)
     movimientos_hoy = MovimientoInventario.objects.filter(
-        fecha__date=hoy
+        fecha__date=hoy, articulo__isnull=False
     ).count()
 
     obras_activas = Obra.objects.filter(estado=Obra.Estado.ACTIVA).count()
@@ -53,11 +59,28 @@ def dashboard(request):
     facturas_borrador = DocumentoEntrada.objects.filter(
         estado=DocumentoEntrada.ESTADO_BORRADOR
     ).count()
-    mermas_mes = MovimientoInventario.objects.filter(
-        tipo_movimiento=MovimientoInventario.TIPO_MERMA,
-        fecha__year=hoy.year,
-        fecha__month=hoy.month,
-    ).count()
+    # Indicador de merma del mes: eventos, unidades y pérdida económica (al costo del asiento)
+    mermas_qs = list(
+        MovimientoInventario.objects
+        .filter(tipo_movimiento=MovimientoInventario.TIPO_MERMA, fecha__year=hoy.year, fecha__month=hoy.month)
+        .select_related('articulo', 'obra', 'usuario')
+        .order_by('-fecha', '-id')
+    )
+    mermas_mes = len(mermas_qs)
+    mermas_unidades_mes = sum((m.cantidad for m in mermas_qs), Decimal('0'))
+    mermas_valor_mes = sum(int(m.cantidad * m.costo_unitario) for m in mermas_qs)
+    ultimas_mermas = [
+        {
+            'fecha': m.fecha,
+            'articulo': m.articulo,
+            'obra': m.obra,
+            'cantidad': m.cantidad,
+            'valor': int(m.cantidad * m.costo_unitario),
+            'usuario': m.usuario,
+            'justificacion': m.justificacion,
+        }
+        for m in mermas_qs[:5]
+    ]
 
     context = {
         'total_articulos': total_articulos,
@@ -70,6 +93,9 @@ def dashboard(request):
         'solicitudes_pendientes': solicitudes_pendientes,
         'facturas_borrador': facturas_borrador,
         'mermas_mes': mermas_mes,
+        'mermas_unidades_mes': mermas_unidades_mes,
+        'mermas_valor_mes': mermas_valor_mes,
+        'ultimas_mermas': ultimas_mermas,
     }
     return render(request, 'core/dashboard.html', context)
 
@@ -77,7 +103,7 @@ def dashboard(request):
 # ==========================================
 # 1. GESTIÓN DE USUARIOS Y ROLES (RBAC)
 # ==========================================
-@login_required
+@rol_requerido('gerencia')
 def gestion_usuarios(request):
     if request.method == 'POST':
         accion = request.POST.get('accion')
@@ -157,7 +183,7 @@ def gestion_usuarios(request):
 # ==========================================
 # 2. PANEL DE ALERTAS DE STOCK (HU-11)
 # ==========================================
-@login_required
+@rol_requerido('gerencia', 'bodega', 'finanzas')
 def panel_alertas_stock(request):
     categoria_q = request.GET.get('categoria', '')
     articulos_alerta = Articulo.objects.filter(stock_actual__lte=F('stock_minimo'))
@@ -174,7 +200,7 @@ def panel_alertas_stock(request):
 # ==========================================
 # 3. AUDITORÍA KARDEX Y CONTRA-ASIENTO (HU-12)
 # ==========================================
-@login_required
+@rol_requerido('gerencia')
 def auditoria_kardex(request):
     q = request.GET.get('q', '').strip()
     tipo = request.GET.get('tipo', '').strip()
@@ -203,82 +229,15 @@ def auditoria_kardex(request):
     if tipo:
         movimientos = movimientos.filter(tipo_movimiento=tipo)
 
-    articulos = Articulo.objects.all().order_by('nombre')
-
     return render(request, 'core/auditoria_kardex.html', {
         'movimientos': movimientos,
         'q': q,
         'tipo': tipo,
         'tipos_movimiento': MovimientoInventario.TIPOS_MOVIMIENTO,
-        'articulos': articulos,
     })
 
 
-@login_required
-@transaction.atomic
-def registrar_movimiento_kardex(request):
-    if request.method != 'POST':
-        return redirect('core:auditoria_kardex')
-
-    articulo_id = request.POST.get('articulo_id')
-    tipo_mov = request.POST.get('tipo_movimiento', '').strip()
-    cantidad_raw = request.POST.get('cantidad', '').strip()
-    motivo = request.POST.get('motivo', '').strip()
-
-    if tipo_mov not in (MovimientoInventario.TIPO_ENTRADA, MovimientoInventario.TIPO_SALIDA):
-        messages.error(request, 'Tipo de operación inválido. Seleccione Ingreso o Salida de Materiales.')
-        return redirect('core:auditoria_kardex')
-
-    if not articulo_id or not motivo:
-        messages.error(request, 'Debe seleccionar un producto e ingresar el motivo obligatorio.')
-        return redirect('core:auditoria_kardex')
-
-    try:
-        cantidad = Decimal(cantidad_raw)
-        if cantidad <= 0:
-            raise InvalidOperation
-    except (InvalidOperation, ValueError):
-        messages.error(request, 'La cantidad debe ser un número mayor a cero.')
-        return redirect('core:auditoria_kardex')
-
-    articulo = get_object_or_404(Articulo.objects.select_for_update(), pk=articulo_id)
-    stock_anterior = articulo.stock_actual
-
-    if tipo_mov == MovimientoInventario.TIPO_SALIDA:
-        if stock_anterior < cantidad:
-            messages.error(
-                request,
-                f'Stock insuficiente para "{articulo.nombre}". Stock actual: {stock_anterior}, solicitado: {cantidad}.'
-            )
-            return redirect('core:auditoria_kardex')
-        nuevo_stock = stock_anterior - cantidad
-    else:
-        nuevo_stock = stock_anterior + cantidad
-
-    articulo.stock_actual = nuevo_stock
-    articulo.save(update_fields=['stock_actual'])
-
-    mov = MovimientoInventario.objects.create(
-        articulo=articulo,
-        documento=None,
-        tipo_movimiento=tipo_mov,
-        cantidad=cantidad,
-        stock_anterior=stock_anterior,
-        stock_posterior=nuevo_stock,
-        costo_unitario=articulo.pmp_costo_actual or articulo.ultimo_costo_compra or 0,
-        usuario=request.user,
-        referencia=motivo[:255],
-    )
-
-    messages.success(
-        request,
-        f'Movimiento #{mov.id} ({mov.get_tipo_movimiento_display()}) registrado por {request.user.username}. '
-        f'Stock de {articulo.nombre}: {stock_anterior} → {nuevo_stock}.'
-    )
-    return redirect('core:auditoria_kardex')
-
-
-@login_required
+@rol_requerido('gerencia')
 @transaction.atomic
 def anular_movimiento_kardex(request, mov_id):
     mov_original = get_object_or_404(
@@ -300,12 +259,21 @@ def anular_movimiento_kardex(request, mov_id):
             messages.warning(request, 'Este registro ya corresponde a un contra-asiento de anulación.')
             return redirect('core:auditoria_kardex')
 
+        # Un movimiento se anula una sola vez: se busca su contra-asiento por la referencia
+        ya_anulado = MovimientoInventario.objects.filter(
+            tipo_movimiento=MovimientoInventario.TIPO_ANULACION,
+            referencia__startswith=f"ANULADO ID#{mov_original.id} ",
+        ).exists()
+        if ya_anulado:
+            messages.warning(request, f'El movimiento #{mov_original.id} ya fue anulado anteriormente.')
+            return redirect('core:auditoria_kardex')
+
         articulo = Articulo.objects.select_for_update().get(pk=mov_original.articulo_id)
         cantidad = mov_original.cantidad
         stock_anterior = articulo.stock_actual
-        tipo_orig = str(mov_original.tipo_movimiento).upper()
 
-        if 'ENTRADA' in tipo_orig or 'INGRESO' in tipo_orig:
+        if mov_original.suma_stock:
+            # El original sumó stock: la reversa resta y no puede dejar saldo negativo
             nuevo_stock = stock_anterior - cantidad
             if nuevo_stock < 0:
                 messages.error(
@@ -352,28 +320,46 @@ def anular_movimiento_kardex(request, mov_id):
 # ==========================================
 # 4. APROBACIÓN DE INVENTARIOS FÍSICOS Y DE OBRA
 # ==========================================
-@login_required
+@rol_requerido('gerencia')
 def aprobacion_inventarios(request):
-    articulos = Articulo.objects.all()
+    articulos = Articulo.objects.filter(activo=True).order_by('nombre')
     if request.method == 'POST':
-        tipo_acta = request.POST.get('tipo_acta', 'Inventario Físico General')
-        observacion = request.POST.get('observacion', 'Aprobado conforme por Gerencia.')
-        ahora = timezone.now().strftime('%d/%m/%Y %H:%M')
+        tipo_acta = request.POST.get('tipo_acta', '')
+        observacion = request.POST.get('observacion', '').strip()
+        if tipo_acta not in dict(ActaAprobacionInventario.TIPO_CHOICES):
+            messages.error(request, 'Seleccione un tipo de revisión válido.')
+            return redirect('core:aprobacion_inventarios')
+        if not observacion:
+            messages.error(request, 'Las observaciones de Gerencia son obligatorias para aprobar el acta.')
+            return redirect('core:aprobacion_inventarios')
+
+        acta = ActaAprobacionInventario.objects.create(
+            tipo_acta=tipo_acta,
+            observacion=observacion,
+            total_articulos_visados=articulos.count(),
+            articulos_criticos_detectados=articulos.filter(stock_actual__lte=F('stock_minimo')).count(),
+            aprobado_por=request.user,
+        )
         messages.success(
             request,
-            f'Acta de "{tipo_acta}" APROBADA oficialmente por {request.user.username} el {ahora}. ({observacion})'
+            f'Acta #{acta.pk} de "{acta.get_tipo_acta_display()}" aprobada por {request.user.username} '
+            f'({acta.total_articulos_visados} artículos visados, {acta.articulos_criticos_detectados} críticos).'
         )
         return redirect('core:aprobacion_inventarios')
 
     return render(request, 'core/aprobacion_inventarios.html', {
         'articulos': articulos,
+        'tipos_acta': ActaAprobacionInventario.TIPO_CHOICES,
+        'actas_aprobadas': ActaAprobacionInventario.objects.select_related('aprobado_por').all()[:10],
+        'sesiones_cerradas': SesionInventario.objects.filter(estado='CERRADA')
+                                                    .select_related('abierta_por', 'cerrada_por')[:10],
     })
 
 
 # ==========================================
 # 5. CONSULTAS GLOBALES DE SOLO LECTURA
 # ==========================================
-@login_required
+@rol_requerido('gerencia', 'consulta')
 def consulta_lectura(request, seccion):
     registros = []
     titulo_seccion = "Consulta General"
@@ -405,7 +391,7 @@ from django.conf import settings
 from django.http import HttpResponse
 from fpdf import FPDF
 
-@login_required
+@rol_requerido('gerencia')
 def exportar_pdf_gerencia(request, tipo_reporte):
     # 1. Crear documento PDF tamaño Carta
     pdf = FPDF(orientation='P', unit='mm', format='Letter')

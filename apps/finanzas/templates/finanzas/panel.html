@@ -24,6 +24,10 @@
                 <a href="{% url 'finanzas:presupuestos_lista' %}" class="btn btn-outline-info">
                     <i class="bi bi-calculator me-1"></i> Presupuestos de Obras
                 </a>
+                <a href="{% url 'lista_restock' %}" class="btn btn-outline-warning">
+                    <i class="bi bi-arrow-repeat me-1"></i> Aprobar Restock
+                    {% if restocks_pendientes_count %}<span class="badge bg-warning text-dark ms-1">{{ restocks_pendientes_count }} · ${{ restocks_pendientes_monto }}</span>{% endif %}
+                </a>
             </div>
         </div>
     </div>

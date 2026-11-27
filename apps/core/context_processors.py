@@ -1,3 +1,4 @@
+from apps.usuarios.forms import rol_activo
 from apps.usuarios.roles import ROLES, normalizar_rol_id, roles_de, tiene_rol
 
 # (app_name, url_name) -> sección resaltada en el menú lateral unificado
@@ -33,6 +34,9 @@ SECCIONES_POR_APP = {
     ('finanzas', 'obra_crear'): 'finanzas_presupuestos',
     ('finanzas', 'presupuesto_editar'): 'finanzas_presupuestos',
     ('finanzas', 'presupuesto_eliminar'): 'finanzas_presupuestos',
+    ('auditoria', 'lista_cardex'): 'cardex_auditoria',
+    ('auditoria', 'lista_bitacora'): 'bitacora',
+    ('auditoria', 'logs_acceso'): 'accesos',
 }
 
 SECCIONES = {
@@ -85,10 +89,14 @@ def roles_processor(request):
 
 
 def navegacion(request):
-    """Roles normalizados del usuario (para menú lateral unificado) y sección activa."""
+    """Roles normalizados del usuario, rol del panel lateral y sección activa.
+
+    'mis_roles' se mantiene para los permisos finos de cada plantilla; el sidebar
+    usa solo 'rol_panel' para mostrar un único panel por usuario.
+    """
     user = request.user
     if not user.is_authenticated:
-        return {'mis_roles': set(), 'seccion_activa': ''}
+        return {'mis_roles': set(), 'rol_panel': '', 'seccion_activa': ''}
 
     if user.is_superuser:
         roles = {r['id'] for r in ROLES}
@@ -106,4 +114,6 @@ def navegacion(request):
             SECCIONES.get(match.url_name, ''),
         )
 
-    return {'mis_roles': roles, 'seccion_activa': seccion}
+    rol_panel = rol_activo(user, request.session.get('rol_activo')) or ''
+
+    return {'mis_roles': roles, 'rol_panel': rol_panel, 'seccion_activa': seccion}

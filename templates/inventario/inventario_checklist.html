@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Checklist general de bodega{% endblock %}
+{% block header_title %}Inventario Físico General - Checklist de Bodega{% endblock %}
+
+{% block content %}
+<ul class="nav nav-tabs mb-4">
+    {% if 'bodega' in mis_roles %}
+    <li class="nav-item">
+        <a class="nav-link" href="{% url 'lista_sesiones_inventario' %}">
+            <i class="bi bi-grid-3x3-gap me-1"></i> Inventario por Sector
+        </a>
+    </li>
+    {% endif %}
+    <li class="nav-item">
+        <a class="nav-link active" aria-current="page" href="{% url 'checklist_inventario_bodega' %}">
+            <i class="bi bi-list-check me-1"></i> Checklist General de Bodega - Todos los Artículos
+        </a>
+    </li>
+</ul>
+
+<h3 class="fw-bold text-white mb-1"><i class="bi bi-list-check text-primary me-2"></i>Checklist general de bodega</h3>
+<p class="text-secondary small">
+    Recorra la bodega, marque cada artículo revisado y anote el stock físico contado.
+    {% if puede_registrar %}
+    Al registrar, las diferencias de los artículos revisados se regularizan en el Cardex como ajustes de inventario físico.
+    {% else %}
+    Vista de consulta: solo Bodega puede registrar el checklist y ajustar el stock.
+    {% endif %}
+</p>
+
+<form method="post" id="formChecklist">
+    {% csrf_token %}
+    <div class="card card-custom mb-3">
+        <div class="card-body d-flex flex-wrap gap-2 align-items-end">
+            <div class="flex-grow-1" style="min-width: 220px;">
+                <label for="buscarArticulo" class="form-label small fw-semibold mb-1">Buscar artículo</label>
+                <input type="search" id="buscarArticulo" class="form-control form-control-sm" placeholder="Código, nombre o ubicación...">
+            </div>
+            <div style="min-width: 200px;">
+                <label for="filtroCategoria" class="form-label small fw-semibold mb-1">Categoría</label>
+                <select id="filtroCategoria" class="form-select form-select-sm">
+                    <option value="">Todas las categorías</option>
+                    {% for cat in categorias %}<option value="{{ cat.nombre }}">{{ cat.nombre }}</option>{% endfor %}
+                </select>
+            </div>
+            <button type="button" id="btnMarcarTodos" class="btn btn-sm btn-outline-info">
+                <i class="bi bi-check2-all me-1"></i> Marcar todos como verificados
+            </button>
+        </div>
+    </div>
+
+    <div class="card card-custom mb-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="tablaChecklist">
+                    <thead class="small text-uppercase">
+                        <tr>
+                            <th class="text-center">Revisado</th>
+                            <th>Código</th>
+                            <th>Artículo</th>
+                            <th>Categoría</th>
+                            <th>Ubicación</th>
+                            <th class="text-center">Stock Sistema</th>
+                            <th class="text-center" style="width: 150px;">Stock Físico Contado</th>
+                            <th class="text-center">Diferencia</th>
+                            <th class="text-center">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for art in articulos %}
+                        <tr class="fila-articulo" data-categoria="{{ art.categoria.nombre }}"
+                            data-texto="{{ art.codigo_interno|lower }} {{ art.nombre|lower }} {{ art.ubicacion_bodega|lower }}">
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input chk-revisado" name="revisado" value="{{ art.pk }}" aria-label="Revisado {{ art.nombre }}">
+                            </td>
+                            <td><code>{{ art.codigo_interno }}</code></td>
+                            <td class="fw-semibold">{{ art.nombre }}</td>
+                            <td class="small">{{ art.categoria.nombre }}</td>
+                            <td class="small">{{ art.ubicacion_bodega }}</td>
+                            <td class="text-center stock-sistema" data-valor="{{ art.stock_actual|stringformat:'s' }}">{{ art.stock_actual }}</td>
+                            <td>
+                                <input type="number" step="0.01" min="0" name="contado_{{ art.pk }}" value="{{ art.stock_actual|stringformat:'s' }}"
+                                       class="form-control form-control-sm text-center inp-contado">
+                            </td>
+                            <td class="text-center fw-bold cell-diferencia">0</td>
+                            <td class="text-center cell-estado"><span class="badge bg-success">Cuadrado</span></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="9" class="text-center text-secondary py-4">No hay artículos activos en bodega.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer small text-secondary d-flex flex-wrap gap-3">
+            <span>Revisados: <strong id="lblRevisados">0</strong> / {{ articulos|length }}</span>
+            <span>Faltantes: <strong id="lblFaltantes" class="text-danger">0</strong></span>
+            <span>Sobrantes: <strong id="lblSobrantes" class="text-warning">0</strong></span>
+        </div>
+    </div>
+
+    {% if puede_registrar %}
+    <div class="card card-custom mb-4">
+        <div class="card-body">
+            <label for="observaciones" class="form-label fw-semibold">Observaciones del checklist</label>
+            <textarea name="observaciones" id="observaciones" rows="2" class="form-control"
+                      placeholder="Obligatorio si hay diferencias (mínimo 10 caracteres). Ej: Conteo general de fin de mes, se detectan faltantes en pasillo B."></textarea>
+            <div class="d-flex justify-content-end mt-3">
+                <button type="submit" class="btn btn-success fw-bold" id="btnRegistrar">
+                    <i class="bi bi-clipboard-check me-1"></i> Registrar checklist y cuadrar stock
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</form>
+
+<div class="card card-custom">
+    <div class="card-header fw-semibold">Últimos checklists generales registrados</div>
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr><th>N°</th><th>Cierre</th><th>Responsable</th><th class="text-end">Valorización dif.</th><th></th></tr></thead>
+            <tbody>
+                {% for c in checklists %}
+                <tr>
+                    <td class="fw-bold">#{{ c.pk }}</td>
+                    <td class="small">{{ c.fecha_cierre|date:"d/m/Y H:i"|default:"—" }}</td>
+                    <td class="small">{{ c.cerrada_por.username|default:"—" }}</td>
+                    <td class="text-end">${{ c.valor_diferencia_total }}</td>
+                    <td class="text-end">
+                        {% if 'bodega' in mis_roles %}<a class="btn btn-sm btn-outline-info" href="{% url 'detalle_sesion_inventario' c.pk %}">Ver</a>{% endif %}
+                    </td>
+                </tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-secondary py-4">Aún no hay checklists generales.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const filas = Array.from(document.querySelectorAll('.fila-articulo'));
+    const buscar = document.getElementById('buscarArticulo');
+    const filtro = document.getElementById('filtroCategoria');
+
+    function recalcularFila(fila) {
+        const sistema = parseFloat(fila.querySelector('.stock-sistema').dataset.valor) || 0;
+        const valor = fila.querySelector('.inp-contado').value;
+        const contado = valor === '' ? sistema : (parseFloat(valor) || 0);
+        const dif = Math.round((contado - sistema) * 100) / 100;
+        const celda = fila.querySelector('.cell-diferencia');
+        celda.textContent = (dif > 0 ? '+' : '') + dif.toLocaleString('es-CL');
+        celda.className = 'text-center fw-bold cell-diferencia ' + (dif < 0 ? 'text-danger' : dif > 0 ? 'text-warning' : '');
+        fila.dataset.diferencia = dif;
+        const estado = fila.querySelector('.cell-estado');
+        if (dif < 0) estado.innerHTML = '<span class="badge bg-danger">Faltante</span>';
+        else if (dif > 0) estado.innerHTML = '<span class="badge bg-warning text-dark">Sobrante</span>';
+        else estado.innerHTML = '<span class="badge bg-success">Cuadrado</span>';
+    }
+
+    function recalcularResumen() {
+        const revisadas = filas.filter(f => f.querySelector('.chk-revisado').checked);
+        document.getElementById('lblRevisados').textContent = revisadas.length;
+        document.getElementById('lblFaltantes').textContent = revisadas.filter(f => parseFloat(f.dataset.diferencia) < 0).length;
+        document.getElementById('lblSobrantes').textContent = revisadas.filter(f => parseFloat(f.dataset.diferencia) > 0).length;
+    }
+
+    function aplicarFiltros() {
+        const texto = buscar.value.trim().toLowerCase();
+        const categoria = filtro.value;
+        filas.forEach(f => {
+            const visible = (!texto || f.dataset.texto.includes(texto)) && (!categoria || f.dataset.categoria === categoria);
+            f.hidden = !visible;
+        });
+    }
+
+    filas.forEach(fila => {
+        recalcularFila(fila);
+        fila.querySelector('.inp-contado').addEventListener('input', () => {
+            recalcularFila(fila);
+            // Anotar un conteo implica que el artículo fue revisado
+            fila.querySelector('.chk-revisado').checked = true;
+            recalcularResumen();
+        });
+        fila.querySelector('.chk-revisado').addEventListener('change', recalcularResumen);
+    });
+    buscar.addEventListener('input', aplicarFiltros);
+    filtro.addEventListener('change', aplicarFiltros);
+
+    document.getElementById('btnMarcarTodos').addEventListener('click', () => {
+        // Solo marca los visibles, para poder revisar por categoría o búsqueda
+        filas.filter(f => !f.hidden).forEach(f => { f.querySelector('.chk-revisado').checked = true; });
+        recalcularResumen();
+    });
+
+    const form = document.getElementById('formChecklist');
+    const btn = document.getElementById('btnRegistrar');
+    if (btn) {
+        form.addEventListener('submit', () => { btn.disabled = true; });
+    }
+});
+</script>
+{% endblock %}

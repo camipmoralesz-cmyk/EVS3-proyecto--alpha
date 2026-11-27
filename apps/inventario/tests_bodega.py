@@ -12,12 +12,13 @@ from apps.catalogo.models import Articulo, Categoria
 from apps.entidades.models import Proveedor
 from apps.obras.models import Obra
 from .models import (
-    CardexInalterableError, DocumentoEntrada, MovimientoInventario as M, SesionInventario,
+    CardexInalterableError, DocumentoEntrada, MovimientoInventario as M, OrdenRestock, SesionInventario,
     SolicitudDespacho, DetalleSolicitud,
 )
 from .services import (
-    abrir_sesion_inventario, cerrar_sesion_inventario, despachar, guardar_conteo,
-    registrar_documento_entrada, registrar_movimiento, registrar_salida_tipificada,
+    SECTOR_CHECKLIST_GENERAL, abrir_sesion_inventario, cerrar_sesion_inventario, crear_orden_restock, despachar,
+    guardar_conteo, recibir_orden_restock, registrar_checklist_general, registrar_documento_entrada,
+    registrar_movimiento, registrar_salida_tipificada, resolver_orden_restock,
 )
 
 # PNG mínimo válido (1x1) para simular la firma del técnico
@@ -107,7 +108,8 @@ class PermisosTests(BaseBodega):
         self.assertEqual(self.client.get(reverse('crear_entidad')).status_code, 200)
 
     def test_catalogo_lo_escriben_bodega_y_finanzas(self):
-        for u, esperado in ((self.bodeguero, 200), (self.finanzas, 200), (self.supervisor, 403), (self.gerente, 403)):
+        # crear_articulo lleva @bloquear_escrituras_finanzas: Finanzas solo consulta el catálogo
+        for u, esperado in ((self.bodeguero, 200), (self.finanzas, 403), (self.supervisor, 403), (self.gerente, 403)):
             self.client.force_login(u)
             self.assertEqual(self.client.get(reverse('crear_articulo')).status_code, esperado, u)
 
@@ -453,3 +455,161 @@ class DashboardTests(BaseBodega):
         self.assertNotContains(r, 'Kardex (solo lectura)')
         self.client.force_login(self.bodeguero)
         self.assertContains(self.client.get(reverse('core:dashboard')), 'Mermas y Devoluciones')
+
+
+class RestockFlujoTests(BaseBodega):
+    """Bodega solicita -> Finanzas aprueba -> Técnico recibe, con segregación de funciones."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        User = get_user_model()
+        # Usuario con doble rol: sirve para probar que nadie aprueba ni recibe lo propio
+        cls.mixto = User.objects.create_user('bodega_finanzas', password='x')
+        cls.mixto.groups.add(cls.grupos['bodega'], cls.grupos['finanzas'])
+        cls.tecnico2 = User.objects.create_user('tecnico2', password='x')
+        cls.tecnico2.groups.add(cls.grupos['tecnico'])
+
+    def orden(self, usuario=None, cantidad='5', costo=1200):
+        return crear_orden_restock(self.art.pk, cantidad, costo, usuario or self.bodeguero)
+
+    def checks(self, **extra):
+        return {'check_cantidad': 'on', 'check_estado': 'on', 'check_especificacion': 'on', **extra}
+
+    def test_bodega_solicita_y_queda_pendiente_de_finanzas(self):
+        orden = self.orden()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_PENDIENTE_FINANZAS)
+        self.assertEqual(orden.solicitado_por, self.bodeguero)
+        self.assertEqual(self.stock(), Decimal('10'))
+
+    def test_bodega_solicita_desde_la_vista(self):
+        self.client.force_login(self.bodeguero)
+        self.client.post(reverse('lista_restock'), {'articulo': self.art.pk, 'cantidad': '4', 'costo_unitario': '900'})
+        orden = OrdenRestock.objects.get()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_PENDIENTE_FINANZAS)
+        self.assertEqual(orden.cantidad, Decimal('4'))
+
+    def test_quien_solicita_no_aprueba_su_propia_orden(self):
+        orden = self.orden(usuario=self.mixto)
+        with self.assertRaises(ValidationError):
+            resolver_orden_restock(orden.pk, self.mixto, aprobar=True)
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_PENDIENTE_FINANZAS)
+        self.assertIsNone(orden.aprobado_por)
+
+        # Por la vista tampoco cambia de estado
+        self.client.force_login(self.mixto)
+        self.client.post(reverse('aprobar_restock_finanzas', args=[orden.pk]), {'decision': 'aprobar'})
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_PENDIENTE_FINANZAS)
+
+    def test_finanzas_distinto_aprueba_y_rechazo_exige_motivo(self):
+        orden = self.orden()
+        resolver_orden_restock(orden.pk, self.finanzas, aprobar=True)
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_APROBADA_FINANZAS)
+        self.assertEqual(orden.aprobado_por, self.finanzas)
+
+        otra = self.orden()
+        with self.assertRaises(ValidationError):
+            resolver_orden_restock(otra.pk, self.finanzas, aprobar=False, observacion='caro')
+        otra.refresh_from_db()
+        self.assertEqual(otra.estado, OrdenRestock.ESTADO_PENDIENTE_FINANZAS)
+        resolver_orden_restock(otra.pk, self.finanzas, aprobar=False, observacion='Presupuesto sobre el valor de mercado')
+        otra.refresh_from_db()
+        self.assertEqual(otra.estado, OrdenRestock.ESTADO_RECHAZADA)
+
+    def test_gerencia_sin_rol_finanzas_no_aprueba(self):
+        orden = self.orden()
+        self.client.force_login(self.gerente)
+        r = self.client.post(reverse('aprobar_restock_finanzas', args=[orden.pk]), {'decision': 'aprobar'})
+        self.assertEqual(r.status_code, 403)
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_PENDIENTE_FINANZAS)
+
+    def test_recibir_sin_los_tres_checks_no_ingresa_stock(self):
+        orden = self.orden()
+        resolver_orden_restock(orden.pk, self.finanzas, aprobar=True)
+        self.client.force_login(self.tecnico)
+        self.client.post(reverse('confirmar_recepcion_restock', args=[orden.pk]),
+                         {'check_cantidad': 'on', 'check_estado': 'on'})
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_APROBADA_FINANZAS)
+        self.assertEqual(self.stock(), Decimal('10'))
+        self.assertFalse(M.objects.filter(orden_restock=orden).exists())
+
+    def test_quien_aprobo_no_confirma_la_recepcion(self):
+        orden = self.orden()
+        resolver_orden_restock(orden.pk, self.mixto, aprobar=True)
+        with self.assertRaises(ValidationError):
+            recibir_orden_restock(orden.pk, self.mixto)
+
+        self.client.force_login(self.mixto)
+        self.client.post(reverse('confirmar_recepcion_restock', args=[orden.pk]), self.checks())
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_APROBADA_FINANZAS)
+        self.assertEqual(self.stock(), Decimal('10'))
+
+    def test_tecnico_distinto_recibe_con_los_tres_checks(self):
+        orden = self.orden(cantidad='5')
+        resolver_orden_restock(orden.pk, self.finanzas, aprobar=True)
+        self.client.force_login(self.tecnico2)
+        self.client.post(reverse('confirmar_recepcion_restock', args=[orden.pk]), self.checks())
+
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, OrdenRestock.ESTADO_INSERTADA)
+        self.assertEqual(orden.revisado_por, self.tecnico2)
+        self.assertEqual(self.stock(), Decimal('15'))
+        mov = M.objects.get(orden_restock=orden)
+        self.assertEqual(mov.tipo_movimiento, M.TIPO_ENTRADA)
+        self.assertEqual(mov.cantidad, Decimal('5'))
+        self.assertEqual(mov.usuario, self.tecnico2)
+
+
+class ChecklistGeneralTests(BaseBodega):
+    def test_diferencia_genera_ajuste_y_valoriza(self):
+        for contado, tipo, valor in (('12', M.TIPO_AJUSTE_POS, 2000), ('7', M.TIPO_AJUSTE_NEG, -5000)):
+            with self.subTest(contado=contado):
+                antes = self.stock()
+                sesion = registrar_checklist_general({self.art.pk: contado}, self.bodeguero,
+                                                     'Diferencia detectada en el conteo físico')
+                mov = M.objects.get(sesion_inventario=sesion)
+                self.assertEqual(mov.tipo_movimiento, tipo)
+                self.assertEqual(mov.cantidad, abs(Decimal(contado) - antes))
+                self.assertEqual(self.stock(), Decimal(contado))
+                # PMP del artículo: $1.000 -> (contado - stock) x 1.000
+                self.assertEqual(sesion.valor_diferencia_total, (Decimal(contado) - antes) * 1000)
+                self.assertEqual(sesion.valor_diferencia_total, valor)
+
+    def test_conteo_igual_al_stock_no_genera_movimiento(self):
+        sesion = registrar_checklist_general({self.art.pk: '10', self.art2.pk: '5'}, self.bodeguero)
+        self.assertFalse(M.objects.filter(sesion_inventario=sesion).exists())
+        self.assertEqual(sesion.valor_diferencia_total, 0)
+        self.assertEqual(sesion.detalles.count(), 2)
+        self.assertEqual(self.stock(), Decimal('10'))
+
+    def test_vista_bodega_registra_y_crea_asientos_en_cardex(self):
+        from apps.auditoria.models import MovimientoCardex
+        cardex_antes = MovimientoCardex.objects.count()
+        self.client.force_login(self.bodeguero)
+        r = self.client.post(reverse('checklist_inventario_bodega'), {
+            'revisado': [str(self.art.pk), str(self.art2.pk)],
+            f'contado_{self.art.pk}': '9',
+            f'contado_{self.art2.pk}': '5',
+            'observaciones': 'Falta una unidad en el pasillo A',
+        })
+        self.assertRedirects(r, reverse('checklist_inventario_bodega'))
+        self.assertEqual(self.stock(), Decimal('9'))
+        sesion = SesionInventario.objects.get(sector=SECTOR_CHECKLIST_GENERAL)
+        self.assertEqual(M.objects.filter(sesion_inventario=sesion, tipo_movimiento=M.TIPO_AJUSTE_NEG).count(), 1)
+        self.assertEqual(MovimientoCardex.objects.count(), cardex_antes + 1)
+
+    def test_permisos_de_la_vista(self):
+        url = reverse('checklist_inventario_bodega')
+        self.client.force_login(self.tecnico)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.post(url, {'revisado': [str(self.art.pk)], f'contado_{self.art.pk}': '1',
+                                                'observaciones': 'Intento sin permiso'}).status_code, 403)
+        self.assertEqual(self.stock(), Decimal('10'))
+        self.client.force_login(self.finanzas)
+        self.assertEqual(self.client.get(url).status_code, 403)

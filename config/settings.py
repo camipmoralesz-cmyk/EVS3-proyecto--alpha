@@ -1,7 +1,8 @@
 
 from pathlib import Path
 import os #Nos permite entrar a nuestros archivo de proyecto y acceder a las variables de entorno
-from dotenv import load_dotenv
+
+from django.core.exceptions import ImproperlyConfigured
 
 try:
     from dotenv import load_dotenv
@@ -13,13 +14,21 @@ except ImportError:
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-q#8)f4^j&u1k&ul-q&=t@s8deoml=lw9!(r2@ev)$2^7yvl^^@'
-
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Por defecto True para no romper el desarrollo local; en producción DEBUG=False en el .env
+DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = []
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            "Falta la variable de entorno SECRET_KEY. Defínala en el archivo .env cuando DEBUG=False."
+        )
+    # Clave solo para desarrollo local
+    SECRET_KEY = 'django-insecure-q#8)f4^j&u1k&ul-q&=t@s8deoml=lw9!(r2@ev)$2^7yvl^^@'
+
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
 
 
 # 1. Registrar apps
@@ -83,7 +92,7 @@ if os.getenv('DB_NAME'):
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DB_NAME', 'proyecto_alpha'),
         'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', '141111'),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
         'HOST': os.getenv('DB_HOST', '127.0.0.1'),
         'PORT': os.getenv('DB_PORT', '5432'),
     }
@@ -155,3 +164,8 @@ MAILERS = {
 LOGIN_URL = 'usuarios:login'
 LOGIN_REDIRECT_URL = 'usuarios:login_por_rol'
 LOGOUT_REDIRECT_URL = 'usuarios:login'
+
+# Cierre de sesión por inactividad: 10 minutos sin peticiones expiran la sesión.
+# Se renueva en cada petición, así el plazo cuenta desde la última actividad.
+SESSION_COOKIE_AGE = 600
+SESSION_SAVE_EVERY_REQUEST = True

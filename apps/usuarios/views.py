@@ -11,8 +11,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.decorators.cache import never_cache
 
-from .forms import LoginForm
-from .roles import ALIAS_ROLES, normalizar_rol_id, roles_de
+from .forms import LoginForm, rol_activo
+from .roles import roles_de
 
 MAX_INTENTOS = 3          # fallos seguidos antes de bloquear
 BLOQUEO_SEGUNDOS = 30     # duración del bloqueo (súbelo en producción)
@@ -33,39 +33,22 @@ def _url_para_rol_id(rol_id):
         return reverse('obras:lista_hojas_servicio')
     if rol_id == 'consulta':
         return reverse('core:consulta_lectura', kwargs={'seccion': 'catalogo'})
+    if rol_id == 'auditor':
+        return reverse('auditoria:lista_cardex')
     return reverse('usuarios:inicio')
 
 
 def obtener_ruta_por_rol(user, rol_seleccionado=None):
-    """Determina la URL del panel correspondiente según el grupo/rol del usuario."""
-    grupos = set(user.groups.values_list('name', flat=True))
-    rol_sel_canon = normalizar_rol_id(rol_seleccionado)
-
-    # 1. Si el usuario pertenece a grupos y seleccionó explícitamente uno de los suyos al loguearse
-    if rol_sel_canon and grupos.intersection(ALIAS_ROLES.get(rol_sel_canon, ())):
-        return _url_para_rol_id(rol_sel_canon)
-
-    # 2. En caso contrario, filtra los grupos del usuario en orden de especificidad
-    for rol_id in ('supervisor', 'bodega', 'finanzas', 'tecnico', 'consulta', 'gerencia'):
-        if grupos.intersection(ALIAS_ROLES.get(rol_id, ())):
-            return _url_para_rol_id(rol_id)
-
-    # 3. Si es superusuario sin grupo específico, respeta el rol elegido en login o va a Gerencia
-    if user.is_superuser:
-        if rol_sel_canon:
-            return _url_para_rol_id(rol_sel_canon)
-        return _url_para_rol_id('gerencia')
-
-    # 4. Respaldo si la cuenta aún no tiene grupo asignado
-    return reverse('usuarios:inicio')
+    """URL del panel del rol activo del usuario (el mismo que arma el sidebar)."""
+    return _url_para_rol_id(rol_activo(user, rol_seleccionado))
 
 
 class LoginPorRolView(LoginRequiredMixin, View):
     """Redirige al usuario autenticado directamente al panel de su rol/grupo."""
 
     def get(self, request, *args, **kwargs):
-        rol_activo = request.session.get('rol_activo')
-        destino = obtener_ruta_por_rol(request.user, rol_seleccionado=rol_activo)
+        rol_sesion = request.session.get('rol_activo')
+        destino = obtener_ruta_por_rol(request.user, rol_seleccionado=rol_sesion)
         return redirect(destino)
 
 

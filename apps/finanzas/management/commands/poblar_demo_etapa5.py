@@ -19,7 +19,7 @@ class Command(BaseCommand):
             nombre='Materiales de prueba Finanzas',
         )
         proveedor, _ = Proveedor.objects.get_or_create(
-            rut='76.543.210-3',
+            rut='76.111.222-8',
             defaults={
                 'razon_social': 'Proveedor de Prueba Etapa 5 SpA',
                 'nombre_fantasia': 'Proveedor Demo',

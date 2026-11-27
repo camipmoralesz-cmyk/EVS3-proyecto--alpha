@@ -21,6 +21,12 @@ urlpatterns = [
 
     # Inventario físico por sector (HU-05)
     path('inventario-fisico/', views_bodega.lista_sesiones_inventario, name='lista_sesiones_inventario'),
+    path('inventario-fisico/checklist/', views_bodega.checklist_inventario_bodega, name='checklist_inventario_bodega'),
     path('inventario-fisico/<int:pk>/', views_bodega.detalle_sesion_inventario, name='detalle_sesion_inventario'),
     path('inventario-fisico/<int:pk>/exportar/', views_bodega.exportar_sesion_inventario, name='exportar_sesion_inventario'),
+
+    # Restock: Bodega solicita -> Finanzas aprueba -> Técnico/Bodega recibe e ingresa
+    path('restock/', views_bodega.lista_restock, name='lista_restock'),
+    path('restock/<int:pk>/aprobar/', views_bodega.aprobar_restock_finanzas, name='aprobar_restock_finanzas'),
+    path('restock/<int:pk>/recibir/', views_bodega.confirmar_recepcion_restock, name='confirmar_recepcion_restock'),
 ]

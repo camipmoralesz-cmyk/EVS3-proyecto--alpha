@@ -5,6 +5,20 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}FYAG | ERP Logística y Gestión{% endblock %}</title>
+    <script>
+        // Accesibilidad: aplica tema y tamaño de letra guardados antes de pintar
+        (function () {
+            var raiz = document.documentElement, tema = 'oscuro', letra = 'md';
+            try {
+                tema = localStorage.getItem('fyag_tema') || 'oscuro';
+                letra = localStorage.getItem('fyag_letra') || 'md';
+            } catch (e) {}
+            var tamanos = { sm: '14px', md: '16px', lg: '18.5px' };
+            raiz.style.fontSize = tamanos[letra] || tamanos.md;
+            raiz.setAttribute('data-tema', tema);
+            raiz.setAttribute('data-bs-theme', tema === 'claro' ? 'light' : 'dark');
+        })();
+    </script>
 
     <!-- Bootstrap 5.3 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -53,6 +67,90 @@
         .form-control:focus, .form-select:focus {
             background-color: #121417;
         }
+
+        /* ---------- Controles de accesibilidad y aviso de inactividad ---------- */
+        .barra-accesibilidad .btn { min-width: 2.2rem; }
+        .barra-accesibilidad .btn[aria-pressed="true"] { background-color: #0dcaf0; color: #000; border-color: #0dcaf0; }
+        #aviso-inactividad {
+            position: fixed; right: 1rem; bottom: 1rem; z-index: 2000; max-width: 22rem;
+            box-shadow: 0 .75rem 2rem rgba(0, 0, 0, .45);
+        }
+
+        /* ---------- Tema Claro ---------- */
+        html[data-tema="claro"] body { background-color: #f4f6f9; color: #212529; }
+        html[data-tema="claro"] .sidebar-fyag { background-color: #ffffff; border-right-color: #dee2e6; }
+        html[data-tema="claro"] .nav-pills .nav-link:not(.active):hover { background-color: rgba(0, 0, 0, .05); }
+        html[data-tema="claro"] header,
+        html[data-tema="claro"] [style*="#1a1d21"],
+        html[data-tema="claro"] .card-custom,
+        html[data-tema="claro"] .card.bg-dark,
+        html[data-tema="claro"] .alert.bg-dark,
+        html[data-tema="claro"] .modal-content.bg-dark {
+            background-color: #ffffff !important; color: #212529; border-color: #dee2e6 !important;
+        }
+        html[data-tema="claro"] .card-custom .card-header { border-bottom-color: #dee2e6; }
+        html[data-tema="claro"] .table-dark {
+            --bs-table-color: #212529; --bs-table-bg: transparent; --bs-table-border-color: #dee2e6;
+            --bs-table-hover-color: #212529; --bs-table-hover-bg: rgba(0, 0, 0, .04);
+            --bs-table-striped-color: #212529; color: #212529;
+        }
+        html[data-tema="claro"] .table thead th { color: #495057; }
+        html[data-tema="claro"] .text-white:not(.btn):not(.badge),
+        html[data-tema="claro"] .text-light:not(.btn):not(.badge) { color: #212529 !important; }
+        html[data-tema="claro"] .text-info:not(.btn):not(.badge) { color: #087990 !important; }
+        html[data-tema="claro"] .text-warning:not(.btn):not(.badge) { color: #997404 !important; }
+        html[data-tema="claro"] .form-control,
+        html[data-tema="claro"] .form-select,
+        html[data-tema="claro"] .form-control.bg-dark,
+        html[data-tema="claro"] .form-select.bg-dark,
+        html[data-tema="claro"] .form-control:focus,
+        html[data-tema="claro"] .form-select:focus {
+            background-color: #ffffff !important; color: #212529 !important; border-color: #ced4da !important;
+        }
+
+        /* ---------- Tema Alto Contraste ---------- */
+        html[data-tema="alto"] body,
+        html[data-tema="alto"] .sidebar-fyag,
+        html[data-tema="alto"] header,
+        html[data-tema="alto"] [style*="#1a1d21"],
+        html[data-tema="alto"] .card,
+        html[data-tema="alto"] .card-custom,
+        html[data-tema="alto"] .card-header,
+        html[data-tema="alto"] .bg-dark,
+        html[data-tema="alto"] .modal-content,
+        html[data-tema="alto"] .list-group-item {
+            background-color: #000000 !important; color: #ffffff !important;
+        }
+        html[data-tema="alto"] .table {
+            --bs-table-color: #ffffff; --bs-table-bg: #000000; --bs-table-border-color: #fde047;
+            --bs-table-hover-color: #000000; --bs-table-hover-bg: #fde047; color: #ffffff;
+        }
+        html[data-tema="alto"] .card, html[data-tema="alto"] .card-custom, html[data-tema="alto"] .sidebar-fyag,
+        html[data-tema="alto"] header, html[data-tema="alto"] .border, html[data-tema="alto"] hr,
+        html[data-tema="alto"] .card-header, html[data-tema="alto"] .table > :not(caption) > * > * {
+            border-color: #fde047 !important;
+        }
+        html[data-tema="alto"] a, html[data-tema="alto"] .nav-link, html[data-tema="alto"] .btn-link,
+        html[data-tema="alto"] .text-info, html[data-tema="alto"] .text-primary { color: #fde047 !important; }
+        html[data-tema="alto"] a:not(.btn):not(.nav-link) { text-decoration: underline; }
+        html[data-tema="alto"] .text-secondary, html[data-tema="alto"] .text-muted,
+        html[data-tema="alto"] .table thead th, html[data-tema="alto"] .form-text { color: #ffffff !important; }
+        html[data-tema="alto"] .nav-pills .nav-link.active { background-color: #fde047 !important; color: #000000 !important; }
+        html[data-tema="alto"] .btn:not(.btn-close) {
+            background-color: #000000 !important; color: #fde047 !important; border: 2px solid #fde047 !important;
+        }
+        html[data-tema="alto"] .btn:not(.btn-close):hover,
+        html[data-tema="alto"] .barra-accesibilidad .btn[aria-pressed="true"] {
+            background-color: #fde047 !important; color: #000000 !important;
+        }
+        html[data-tema="alto"] .badge { outline: 1px solid #ffffff; }
+        html[data-tema="alto"] .form-control, html[data-tema="alto"] .form-select,
+        html[data-tema="alto"] .form-check-input {
+            background-color: #000000 !important; color: #ffffff !important; border: 2px solid #fde047 !important;
+        }
+        html[data-tema="alto"] .form-check-input:checked { background-color: #fde047 !important; }
+        html[data-tema="alto"] :focus-visible { outline: 3px solid #fde047 !important; outline-offset: 2px; }
+        html[data-tema="alto"] .alert { background-color: #000000 !important; color: #ffffff !important; border: 2px solid #fde047 !important; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -69,7 +167,7 @@
             </div>
             <span class="fs-5 fw-bold tracking-wide text-info">FRÍO Y AGROINDUSTRIA</span>
             {% if request.user.is_authenticated %}
-            <span class="badge bg-info text-dark mt-1">Perfil: {{ rol_usuario|default:"FYAG" }}</span>
+            <span class="badge bg-info text-dark mt-1"><span>Perfil:</span> <span>{{ rol_usuario|default:"FYAG" }}</span></span>
             {% endif %}
         </a>
         <hr class="border-secondary">
@@ -77,7 +175,8 @@
         <!-- Menú dinámico por rol según Anexo C -->
         <ul class="nav nav-pills flex-column mb-auto gap-1">
 
-            {% if 'gerencia' in mis_roles %}
+            {# Un único panel por usuario según su rol activo (rol_panel) #}
+            {% if rol_panel == 'gerencia' %}
             <li class="mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
                 Gestión Estratégica y Control
             </li>
@@ -86,147 +185,242 @@
                     <i class="bi bi-speedometer2 me-2"></i> Dashboard
                 </a>
             </li>
-            <li>
+            <li class="nav-item">
                 <a href="{% url 'core:auditoria_kardex' %}" class="nav-link {% if seccion_activa == 'auditoria' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-shield-lock me-2"></i> Auditoría y Kardex
                 </a>
             </li>
-            <li>
+            <li class="nav-item">
                 <a href="{% url 'core:aprobacion_inventarios' %}" class="nav-link {% if seccion_activa == 'aprobaciones' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-clipboard2-check me-2"></i> Aprobar Inventarios
                 </a>
             </li>
-            <li>
+            <li class="nav-item">
                 <a href="{% url 'core:alertas_stock' %}" class="nav-link {% if seccion_activa == 'alertas' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-exclamation-triangle me-2"></i> Alertas de Stock
                 </a>
             </li>
-            <li>
+            <li class="nav-item">
                 <a href="{% url 'core:gestion_usuarios' %}" class="nav-link {% if seccion_activa == 'usuarios' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-people me-2"></i> Usuarios y Roles
                 </a>
             </li>
-            {% endif %}
-
-            {% if 'bodega' in mis_roles or 'gerencia' in mis_roles or 'finanzas' in mis_roles %}
-            <li class="{% if 'gerencia' in mis_roles %}mt-3 {% endif %}mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
-                Bodega y Logística
-            </li>
-            <li>
-                <a href="{% url 'inventario_stock' %}" class="nav-link {% if seccion_activa == 'stock' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-boxes me-2"></i> Stock en Tiempo Real
+            <li class="nav-item">
+                <a href="{% url 'auditoria:lista_bitacora' %}" class="nav-link {% if seccion_activa == 'bitacora' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-journal-text me-2"></i> Bitácora de Cambios
                 </a>
             </li>
-            <li>
-                <a href="{% url 'lista_articulos' %}" class="nav-link {% if seccion_activa == 'catalogo' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-box-seam me-2"></i> Catálogo de Artículos
+            <li class="nav-item">
+                <a href="{% url 'auditoria:logs_acceso' %}" class="nav-link {% if seccion_activa == 'accesos' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-door-open me-2"></i> Registro de Accesos
                 </a>
             </li>
-            <li>
-                <a href="{% url 'lista_documentos' %}" class="nav-link {% if seccion_activa == 'compras' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-receipt me-2"></i> Compras y Facturas
-                </a>
-            </li>
-            {% if 'bodega' in mis_roles %}
-            <li>
-                <a href="{% url 'lista_solicitudes' %}" class="nav-link {% if seccion_activa == 'despachos' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-building-gear me-2"></i> Despachos a Obras
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'salida_tipificada' %}" class="nav-link {% if seccion_activa == 'salidas' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-box-arrow-right me-2"></i> Mermas y Devoluciones
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'lista_sesiones_inventario' %}" class="nav-link {% if seccion_activa == 'fisico' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-clipboard-check me-2"></i> Inventario Físico
-                </a>
-            </li>
-            {% endif %}
-            <li>
-                <a href="{% url 'historial_movimientos' %}" class="nav-link {% if seccion_activa == 'kardex' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-journal-check me-2"></i> Kardex (solo lectura)
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'lista_entidades' %}" class="nav-link {% if seccion_activa == 'entidades' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-truck me-2"></i> Proveedores y Clientes
-                </a>
-            </li>
-            {% endif %}
-
-            {% if request.user|es_finanzas %}
-            <li class="mt-3 mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
-                Administración y Finanzas
-            </li>
-            <li>
-                <a href="{% url 'finanzas:panel' %}" class="nav-link {% if seccion_activa == 'finanzas_panel' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-cash-coin me-2"></i> Panel Finanzas
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'finanzas:facturas_lista' %}" class="nav-link {% if seccion_activa == 'finanzas_facturas' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-file-earmark-spreadsheet me-2"></i> Facturas Finanzas
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'finanzas:pagos_lista' %}" class="nav-link {% if seccion_activa == 'finanzas_pagos' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-credit-card me-2"></i> Pagos a Proveedores
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'finanzas:presupuestos_lista' %}" class="nav-link {% if seccion_activa == 'finanzas_presupuestos' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-calculator me-2"></i> Presupuestos de Obras
-                </a>
-            </li>
-            {% endif %}
-
-            {% if 'supervisor' in mis_roles or 'tecnico' in mis_roles or 'gerencia' in mis_roles %}
-            <li class="{% if 'gerencia' in mis_roles or 'bodega' in mis_roles or 'finanzas' in mis_roles %}mt-3 {% endif %}mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
-                Obras y Terreno
-            </li>
-            {% if 'supervisor' in mis_roles or 'gerencia' in mis_roles %}
-            <li>
-                <a href="{% url 'obras:lista_obras' %}" class="nav-link {% if seccion_activa == 'obras_lista' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-buildings me-2"></i> Mis Obras Asignadas
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'obras:lista_solicitudes' %}" class="nav-link {% if seccion_activa == 'obras_solicitudes' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-cart-plus me-2"></i> Solicitudes de Materiales
-                </a>
-            </li>
-            {% endif %}
-            <li>
-                <a href="{% url 'obras:lista_hojas_servicio' %}" class="nav-link {% if seccion_activa == 'obras_hojas' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-file-earmark-medical me-2"></i> Hojas de Servicio
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'obras:kardex_lectura' %}" class="nav-link {% if seccion_activa == 'obras_kardex' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-eye me-2"></i> Stock y Kardex (Lectura)
-                </a>
-            </li>
-            {% endif %}
-
-            {% if 'gerencia' in mis_roles or 'consulta' in mis_roles %}
             <li class="mt-3 mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
                 Consultas Globales
             </li>
-            <li>
+            <li class="nav-item">
                 <a href="{% url 'core:consulta_lectura' 'catalogo' %}" class="nav-link {% if seccion == 'catalogo' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-search me-2"></i> Consulta Catálogo
                 </a>
             </li>
-            <li>
+            <li class="nav-item">
                 <a href="{% url 'core:consulta_lectura' 'facturas' %}" class="nav-link {% if seccion == 'facturas' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-receipt-cutoff me-2"></i> Consulta Facturas
                 </a>
             </li>
-            <li>
+            <li class="nav-item">
                 <a href="{% url 'core:consulta_lectura' 'entidades' %}" class="nav-link {% if seccion == 'entidades' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-building me-2"></i> Consulta Proveedores
+                </a>
+            </li>
+
+            {% elif rol_panel == 'bodega' %}
+            <li class="mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
+                Bodega y Logística
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'inventario_stock' %}" class="nav-link {% if seccion_activa == 'stock' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-boxes me-2"></i> Stock en Tiempo Real
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_articulos' %}" class="nav-link {% if seccion_activa == 'catalogo' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-box-seam me-2"></i> Catálogo de Artículos
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_documentos' %}" class="nav-link {% if seccion_activa == 'compras' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-receipt me-2"></i> Compras y Facturas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_solicitudes' %}" class="nav-link {% if seccion_activa == 'despachos' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-building-gear me-2"></i> Despachos a Obras
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'salida_tipificada' %}" class="nav-link {% if seccion_activa == 'salidas' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-box-arrow-right me-2"></i> Mermas y Devoluciones
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_sesiones_inventario' %}" class="nav-link {% if seccion_activa == 'fisico' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-clipboard-check me-2"></i> Inventario Físico
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_restock' %}" class="nav-link {% if request.resolver_match.url_name == 'lista_restock' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-arrow-repeat me-2"></i> Restock de Bodega
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'historial_movimientos' %}" class="nav-link {% if seccion_activa == 'kardex' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-journal-check me-2"></i> Kardex (solo lectura)
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_entidades' %}" class="nav-link {% if seccion_activa == 'entidades' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-truck me-2"></i> Proveedores y Clientes
+                </a>
+            </li>
+
+            {% elif rol_panel == 'finanzas' %}
+            <li class="mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
+                Administración y Finanzas
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'finanzas:panel' %}" class="nav-link {% if seccion_activa == 'finanzas_panel' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-cash-coin me-2"></i> Panel Finanzas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'finanzas:facturas_lista' %}" class="nav-link {% if seccion_activa == 'finanzas_facturas' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-file-earmark-spreadsheet me-2"></i> Facturas Finanzas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'finanzas:pagos_lista' %}" class="nav-link {% if seccion_activa == 'finanzas_pagos' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-credit-card me-2"></i> Pagos a Proveedores
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'finanzas:presupuestos_lista' %}" class="nav-link {% if seccion_activa == 'finanzas_presupuestos' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-calculator me-2"></i> Presupuestos de Obras
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_restock' %}" class="nav-link {% if request.resolver_match.url_name == 'lista_restock' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-arrow-repeat me-2"></i> Restock de Bodega
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'finanzas:entidades_lista' %}" class="nav-link {% if seccion_activa == 'finanzas_entidades' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-truck me-2"></i> Proveedores y Mandantes
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_articulos' %}" class="nav-link {% if seccion_activa == 'catalogo' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-box-seam me-2"></i> Catálogo de Artículos
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'historial_movimientos' %}" class="nav-link {% if seccion_activa == 'kardex' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-journal-check me-2"></i> Kardex (solo lectura)
+                </a>
+            </li>
+
+            {% elif rol_panel == 'supervisor' %}
+            <li class="mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
+                Obras y Terreno
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'obras:lista_obras' %}" class="nav-link {% if seccion_activa == 'obras_lista' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-buildings me-2"></i> Mis Obras Asignadas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'obras:lista_solicitudes' %}" class="nav-link {% if seccion_activa == 'obras_solicitudes' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-cart-plus me-2"></i> Solicitudes de Materiales
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'obras:lista_hojas_servicio' %}" class="nav-link {% if seccion_activa == 'obras_hojas' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-file-earmark-medical me-2"></i> Hojas de Servicio
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'obras:kardex_lectura' %}" class="nav-link {% if seccion_activa == 'obras_kardex' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-eye me-2"></i> Stock y Kardex (Lectura)
+                </a>
+            </li>
+
+            {% elif rol_panel == 'tecnico' %}
+            <li class="mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
+                Terreno y Servicios Técnicos
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'obras:lista_hojas_servicio' %}" class="nav-link {% if seccion_activa == 'obras_hojas' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-file-earmark-medical me-2"></i> Hojas de Servicio
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'obras:kardex_lectura' %}" class="nav-link {% if seccion_activa == 'obras_kardex' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-eye me-2"></i> Stock y Kardex (Lectura)
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'lista_restock' %}" class="nav-link {% if request.resolver_match.url_name == 'lista_restock' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-arrow-repeat me-2"></i> Restock de Bodega
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'checklist_inventario_bodega' %}" class="nav-link {% if request.resolver_match.url_name == 'checklist_inventario_bodega' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-list-check me-2"></i> Checklist de Bodega
+                </a>
+            </li>
+
+            {% elif rol_panel == 'consulta' %}
+            <li class="mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
+                Consultas Globales
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'core:consulta_lectura' 'catalogo' %}" class="nav-link {% if seccion == 'catalogo' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-search me-2"></i> Consulta Catálogo
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'core:consulta_lectura' 'facturas' %}" class="nav-link {% if seccion == 'facturas' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-receipt-cutoff me-2"></i> Consulta Facturas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'core:consulta_lectura' 'entidades' %}" class="nav-link {% if seccion == 'entidades' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-building me-2"></i> Consulta Proveedores
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'auditoria:lista_cardex' %}" class="nav-link {% if seccion_activa == 'cardex_auditoria' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-shield-check me-2"></i> Cardex Auditoría
+                </a>
+            </li>
+
+            {% elif rol_panel == 'auditor' %}
+            <li class="mb-1 px-2 text-uppercase text-secondary" style="font-size: 0.7rem; letter-spacing: 1px;">
+                Consultas Globales y Auditoría
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'auditoria:lista_cardex' %}" class="nav-link {% if seccion_activa == 'cardex_auditoria' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-shield-check me-2"></i> Cardex Auditoría
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'auditoria:lista_bitacora' %}" class="nav-link {% if seccion_activa == 'bitacora' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-journal-text me-2"></i> Bitácora de Cambios
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'auditoria:logs_acceso' %}" class="nav-link {% if seccion_activa == 'accesos' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-door-open me-2"></i> Registro de Accesos
                 </a>
             </li>
             {% endif %}
@@ -244,7 +438,7 @@
                     <small class="text-info mt-1 text-truncate" style="font-size: 0.72rem;">{{ rol_usuario|default:"Operador" }}</small>
                 </div>
             </a>
-            <form method="post" action="{% url 'usuarios:logout' %}" class="d-grid m-0">
+            <form method="post" action="{% url 'usuarios:logout' %}" class="d-grid m-0" id="form-logout">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-outline-danger btn-sm">
                     <i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión
@@ -260,12 +454,29 @@
 
     <!-- CONTENEDOR DERECHO (Barra superior + Contenido dinámico) -->
     <div class="flex-grow-1 d-flex flex-column overflow-auto">
-        <header class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center" style="background-color: #1a1d21;">
+        <header class="p-3 border-bottom border-secondary border-opacity-25 d-flex flex-wrap gap-2 justify-content-between align-items-center" style="background-color: #1a1d21;">
             <div class="d-flex align-items-center text-info fw-semibold">
                 <i class="bi bi-grid-1x2 me-2"></i>
                 <span>{% block header_title %}Panel Operativo y Logístico{% endblock %}</span>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <!-- Controles de accesibilidad: tamaño de letra, contraste e idioma -->
+                <div class="barra-accesibilidad d-flex flex-wrap align-items-center gap-2" role="toolbar" aria-label="Accesibilidad">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Tamaño de letra" data-i18n-attr="aria-label">
+                        <button type="button" class="btn btn-outline-secondary" data-letra="sm" title="Letra más pequeña" data-i18n-attr="title">A-</button>
+                        <button type="button" class="btn btn-outline-secondary" data-letra="md" title="Letra normal" data-i18n-attr="title">A</button>
+                        <button type="button" class="btn btn-outline-secondary" data-letra="lg" title="Letra más grande" data-i18n-attr="title">A+</button>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Contraste de colores" data-i18n-attr="aria-label">
+                        <button type="button" class="btn btn-outline-secondary" data-tema-opcion="oscuro"><i class="bi bi-moon-stars me-1"></i><span>Oscuro</span></button>
+                        <button type="button" class="btn btn-outline-secondary" data-tema-opcion="claro"><i class="bi bi-sun me-1"></i><span>Claro</span></button>
+                        <button type="button" class="btn btn-outline-secondary" data-tema-opcion="alto"><i class="bi bi-circle-half me-1"></i><span>Alto Contraste</span></button>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Idioma" data-i18n-attr="aria-label">
+                        <button type="button" class="btn btn-outline-secondary" data-idioma="es" lang="es">ES</button>
+                        <button type="button" class="btn btn-outline-secondary" data-idioma="en" lang="en">EN</button>
+                    </div>
+                </div>
                 <span class="badge bg-dark border border-secondary text-light px-3 py-2" title="Hora local (America/Santiago)">
                     <i class="bi bi-clock text-info me-1"></i>
                     <span id="reloj-santiago">{% now "d/m/Y H:i" %}</span> hrs
@@ -290,6 +501,19 @@
     </div>
 
 </main>
+
+{% if request.user.is_authenticated %}
+<!-- Aviso de cierre de sesión por inactividad -->
+<div id="aviso-inactividad" class="alert alert-warning d-none d-flex flex-column gap-2 mb-0" role="alert" aria-live="assertive">
+    <div class="fw-bold"><i class="bi bi-hourglass-split me-1"></i><span>Tu sesión está por cerrarse</span></div>
+    <div class="small">
+        <span>Por inactividad, la sesión se cerrará en</span>
+        <strong id="aviso-inactividad-segundos">60</strong>
+        <span>segundos.</span>
+    </div>
+    <button type="button" class="btn btn-sm btn-dark" id="btn-seguir-conectado"><span>Seguir conectado</span></button>
+</div>
+{% endif %}
 
 <!-- Bootstrap 5.3 JS Bundle -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -321,6 +545,278 @@
         setInterval(actualizarReloj, 15000);
     })();
 </script>
+<script>
+    // ==================================================================
+    // Accesibilidad: tamaño de letra, contraste e idioma (ES / EN)
+    // ==================================================================
+    (function () {
+        const raiz = document.documentElement;
+        const guardar = (clave, valor) => { try { localStorage.setItem(clave, valor); } catch (e) {} };
+        const leer = (clave, defecto) => { try { return localStorage.getItem(clave) || defecto; } catch (e) { return defecto; } };
+        const TAMANOS = { sm: '14px', md: '16px', lg: '18.5px' };
+
+        function marcar(selector, atributo, valor) {
+            document.querySelectorAll(selector).forEach(b => b.setAttribute('aria-pressed', String(b.dataset[atributo] === valor)));
+        }
+
+        function aplicarLetra(letra) {
+            raiz.style.fontSize = TAMANOS[letra] || TAMANOS.md;
+            guardar('fyag_letra', letra);
+            marcar('[data-letra]', 'letra', letra);
+        }
+
+        function aplicarTema(tema) {
+            raiz.setAttribute('data-tema', tema);
+            raiz.setAttribute('data-bs-theme', tema === 'claro' ? 'light' : 'dark');
+            guardar('fyag_tema', tema);
+            marcar('[data-tema-opcion]', 'temaOpcion', tema);
+        }
+
+        // Diccionario ES -> EN de la interfaz común (menú, cabeceras y botones)
+        // Las claves del diccionario van normalizadas (minúsculas, sin tildes):
+        // la comparación no depende de mayúsculas ni acentos.
+        const clave = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+        const EN = {
+            'gestion estrategica y control': 'Strategic Management & Control',
+            'auditoria y kardex': 'Audit & Kardex',
+            'aprobar inventarios': 'Approve Inventories',
+            'alertas de stock': 'Stock Alerts',
+            'usuarios y roles': 'Users & Roles',
+            'bitacora de cambios': 'Change Log',
+            'registro de accesos': 'Access Log',
+            'consultas globales': 'Global Queries',
+            'consulta catalogo': 'Catalog Lookup',
+            'consulta facturas': 'Invoice Lookup',
+            'consulta proveedores': 'Supplier Lookup',
+            'cardex auditoria': 'Audit Kardex',
+            'bodega y logistica': 'Warehouse & Logistics',
+            'stock en tiempo real': 'Real-Time Stock',
+            'catalogo de articulos': 'Item Catalog',
+            'compras y facturas': 'Purchases & Invoices',
+            'despachos a obras': 'Site Dispatches',
+            'mermas y devoluciones': 'Shrinkage & Returns',
+            'inventario fisico': 'Physical Inventory',
+            'restock de bodega': 'Warehouse Restock',
+            'checklist de bodega': 'Warehouse Checklist',
+            'kardex (solo lectura)': 'Kardex (read-only)',
+            'proveedores y clientes': 'Suppliers & Clients',
+            'administracion y finanzas': 'Administration & Finance',
+            'panel finanzas': 'Finance Panel',
+            'facturas finanzas': 'Finance Invoices',
+            'pagos a proveedores': 'Supplier Payments',
+            'presupuestos de obras': 'Project Budgets',
+            'proveedores y mandantes': 'Suppliers & Principals',
+            'obras y terreno': 'Projects & Field',
+            'mis obras asignadas': 'My Assigned Projects',
+            'solicitudes de materiales': 'Material Requests',
+            'hojas de servicio': 'Service Sheets',
+            'stock y kardex (lectura)': 'Stock & Kardex (Read-only)',
+            'terreno y servicios tecnicos': 'Field & Technical Services',
+            'perfil:': 'Profile:',
+            'administrador general': 'General Administrator',
+            'administracion / finanzas': 'Administration / Finance',
+            'bodega / logistica': 'Warehouse / Logistics',
+            'supervisor de obras': 'Site Supervisor',
+            'tecnico': 'Technician',
+            'consulta / auditoria lectura': 'Read-only / Audit',
+            'auditor interno / fiscalizacion': 'Internal Auditor',
+            'operador': 'Operator',
+            'cerrar sesion': 'Log Out',
+            'iniciar sesion': 'Log In',
+            'oscuro': 'Dark',
+            'claro': 'Light',
+            'alto contraste': 'High Contrast',
+            'letra mas pequena': 'Smaller text',
+            'letra normal': 'Normal text',
+            'letra mas grande': 'Larger text',
+            'tamano de letra': 'Text size',
+            'contraste de colores': 'Color contrast',
+            'idioma': 'Language',
+            'panel operativo y logistico': 'Operations & Logistics Panel',
+            'panel gerencial y control operativo': 'Management & Operations Control Panel',
+            'inventario fisico por sector': 'Physical Inventory by Sector',
+            'inventario fisico general - checklist de bodega': 'General Physical Inventory - Warehouse Checklist',
+            'restock: bodega → finanzas → revision tecnica': 'Restock: Warehouse → Finance → Technical Review',
+            'auditoria integral del kardex y control de bodega': 'Full Kardex Audit & Warehouse Control',
+            'aprobacion gerencial de inventarios fisicos y de obra': 'Management Approval of Physical & Site Inventories',
+            'listado de obras asignadas en terreno': 'Assigned Field Projects',
+            'gestion y solicitudes de la obra': 'Project Management & Requests',
+            'solicitudes de materiales a bodega (terreno)': 'Material Requests to Warehouse (Field)',
+            'consulta de stock y kardex': 'Stock & Kardex Lookup',
+            'panel de finanzas': 'Finance Panel',
+            'accesos rapidos': 'Quick Access',
+            'alertas operativas': 'Operational Alerts',
+            'ultimos movimientos de kardex': 'Latest Kardex Movements',
+            'articulos en catalogo': 'Items in Catalog',
+            'stock critico / minimo': 'Critical / Minimum Stock',
+            'obras activas': 'Active Projects',
+            'movimientos hoy': 'Movements Today',
+            'indicador de merma del mes': 'Monthly Shrinkage Indicator',
+            'valor perdido en mermas ($ clp)': 'Value Lost to Shrinkage ($ CLP)',
+            'unidades mermadas': 'Units Lost',
+            'eventos de merma': 'Shrinkage Events',
+            'registrar merma': 'Record shrinkage',
+            'inventario por sector': 'Inventory by Sector',
+            'checklist general de bodega - todos los articulos': 'General Warehouse Checklist - All Items',
+            'marcar todos como verificados': 'Mark all as verified',
+            'generar reporte pdf': 'Generate PDF Report',
+            'guardar': 'Save',
+            'cancelar': 'Cancel',
+            'volver': 'Back',
+            'filtrar': 'Filter',
+            'limpiar': 'Clear',
+            'buscar': 'Search',
+            'acciones': 'Actions',
+            'estado': 'Status',
+            'fecha': 'Date',
+            'cantidad': 'Quantity',
+            'articulo': 'Item',
+            'codigo': 'Code',
+            'categoria': 'Category',
+            'ubicacion': 'Location',
+            'obra': 'Project',
+            'proveedor': 'Supplier',
+            'responsable': 'Responsible',
+            'justificacion': 'Justification',
+            'observaciones': 'Notes',
+            'ver': 'View',
+            'editar': 'Edit',
+            'eliminar': 'Delete',
+            'rechazar': 'Reject',
+            'tu sesion esta por cerrarse': 'Your session is about to close',
+            'por inactividad, la sesion se cerrara en': 'Due to inactivity, the session will close in',
+            'segundos.': 'seconds.',
+            'seguir conectado': 'Stay signed in',
+        };
+        const OMITIR = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'OPTION']);
+
+        function traducirNodo(nodo, idioma) {
+            const texto = nodo.nodeValue.trim();
+            if (!texto) return;
+            // El texto original en español queda guardado en el nodo para volver a ES
+            const original = nodo.__fyagEs || texto;
+            const destino = idioma === 'en' ? EN[clave(original)] : original;
+            if (!destino || destino === texto) return;
+            nodo.__fyagEs = original;
+            nodo.nodeValue = nodo.nodeValue.replace(texto, destino);
+        }
+
+        function traducirAtributos(raizDom, idioma) {
+            raizDom.querySelectorAll('[data-i18n-attr]').forEach(el => {
+                el.dataset.i18nAttr.split(',').forEach(attr => {
+                    const claveDato = 'i18nOriginal' + attr.replace(/[^a-z]/gi, '');
+                    if (!el.dataset[claveDato]) el.dataset[claveDato] = el.getAttribute(attr) || '';
+                    const original = el.dataset[claveDato];
+                    el.setAttribute(attr, idioma === 'en' ? (EN[clave(original)] || original) : original);
+                });
+            });
+        }
+
+        function traducir(raizDom, idioma) {
+            const recorrido = document.createTreeWalker(raizDom, NodeFilter.SHOW_TEXT, {
+                acceptNode: n => (n.parentElement && OMITIR.has(n.parentElement.tagName)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+            });
+            let nodo;
+            while ((nodo = recorrido.nextNode())) traducirNodo(nodo, idioma);
+            if (raizDom.querySelectorAll) traducirAtributos(raizDom, idioma);
+        }
+
+        let idiomaActual = leer('fyag_idioma', 'es');
+        function aplicarIdioma(idioma) {
+            idiomaActual = idioma;
+            raiz.setAttribute('lang', idioma);
+            guardar('fyag_idioma', idioma);
+            marcar('[data-idioma]', 'idioma', idioma);
+            traducir(document.body, idioma);
+        }
+
+        // Contenido que se agrega después (filas dinámicas, mensajes) también se traduce
+        new MutationObserver(cambios => {
+            if (idiomaActual !== 'en') return;
+            cambios.forEach(c => c.addedNodes.forEach(n => {
+                if (n.nodeType === Node.TEXT_NODE) traducirNodo(n, 'en');
+                else if (n.nodeType === Node.ELEMENT_NODE) traducir(n, 'en');
+            }));
+        }).observe(document.body, { childList: true, subtree: true });
+
+        document.querySelectorAll('[data-letra]').forEach(b => b.addEventListener('click', () => aplicarLetra(b.dataset.letra)));
+        document.querySelectorAll('[data-tema-opcion]').forEach(b => b.addEventListener('click', () => aplicarTema(b.dataset.temaOpcion)));
+        document.querySelectorAll('[data-idioma]').forEach(b => b.addEventListener('click', () => aplicarIdioma(b.dataset.idioma)));
+
+        aplicarLetra(leer('fyag_letra', 'md'));
+        aplicarTema(leer('fyag_tema', 'oscuro'));
+        aplicarIdioma(idiomaActual);
+    })();
+</script>
+{% if request.user.is_authenticated %}
+<script>
+    // ==================================================================
+    // Cierre automático de sesión tras 10 minutos de inactividad
+    // La última actividad se comparte entre pestañas vía localStorage.
+    // ==================================================================
+    (function () {
+        const LIMITE = 600;           // segundos sin actividad -> cierre de sesión
+        const AVISO = 540;            // al minuto 9 se muestra la cuenta regresiva
+        const PING_CADA = 240;        // renueva la sesión en el servidor si hay actividad sin peticiones
+        const CLAVE = 'fyag_ultima_actividad';
+        const URL_PING = "{% url 'usuarios:inicio' %}";
+        const formLogout = document.getElementById('form-logout');
+        const aviso = document.getElementById('aviso-inactividad');
+        const segundos = document.getElementById('aviso-inactividad-segundos');
+        if (!formLogout || !aviso) return;
+
+        // La página recién cargada parte con 0 segundos de inactividad
+        let ultimaLocal = Date.now();
+        let ultimoPing = Date.now();
+        let cerrando = false;
+        try { localStorage.setItem(CLAVE, String(ultimaLocal)); } catch (e) {}
+
+        function ultimaActividad() {
+            let compartida = 0;
+            try { compartida = parseInt(localStorage.getItem(CLAVE), 10) || 0; } catch (e) {}
+            return Math.max(ultimaLocal, compartida);
+        }
+
+        function registrarActividad() {
+            aviso.classList.add('d-none');
+            const ahora = Date.now();
+            if (ahora - ultimaLocal < 1000) return;   // evita escribir en cada movimiento del mouse
+            ultimaLocal = ahora;
+            try { localStorage.setItem(CLAVE, String(ahora)); } catch (e) {}
+            if ((ahora - ultimoPing) / 1000 >= PING_CADA) {
+                ultimoPing = ahora;
+                fetch(URL_PING, { method: 'HEAD', credentials: 'same-origin', cache: 'no-store' }).catch(() => {});
+            }
+        }
+
+        ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evento =>
+            window.addEventListener(evento, registrarActividad, { passive: true }));
+
+        document.getElementById('btn-seguir-conectado').addEventListener('click', () => {
+            ultimoPing = 0;           // fuerza la renovación en el servidor
+            ultimaLocal = 0;
+            registrarActividad();
+            aviso.classList.add('d-none');
+        });
+
+        registrarActividad();
+        setInterval(() => {
+            if (cerrando) return;
+            const inactivo = Math.floor((Date.now() - ultimaActividad()) / 1000);
+            if (inactivo >= LIMITE) {
+                cerrando = true;
+                try { localStorage.setItem('fyag_cierre_inactividad', '1'); } catch (e) {}
+                formLogout.submit();
+            } else if (inactivo >= AVISO) {
+                segundos.textContent = LIMITE - inactivo;
+                aviso.classList.remove('d-none');
+            } else {
+                aviso.classList.add('d-none');
+            }
+        }, 1000);
+    })();
+</script>
+{% endif %}
 {% block extra_js %}{% endblock %}
 </body>
 </html>
