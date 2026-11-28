@@ -294,6 +294,11 @@ class MovimientoInventario(models.Model):
         related_name='movimientos', verbose_name="Orden de restock"
     )
     justificacion = models.TextField(blank=True, default='', verbose_name="Justificación")
+    # Contra-asiento (ANULACION): movimiento que revierte. OneToOne = una sola anulación por movimiento.
+    movimiento_anulado = models.OneToOneField(
+        'self', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='anulacion', verbose_name="Movimiento anulado"
+    )
 
     objects = MovimientoQuerySet.as_manager()
 
@@ -317,6 +322,15 @@ class MovimientoInventario(models.Model):
     @property
     def valor_total(self):
         return int(self.cantidad * self.costo_unitario)
+
+    @property
+    def cantidad_con_signo(self):
+        """Cantidad positiva si sumó stock y negativa si restó (vista del Cardex)."""
+        return self.cantidad if self.suma_stock else -self.cantidad
+
+    @property
+    def es_anulacion(self):
+        return self.tipo_movimiento == self.TIPO_ANULACION
 
     def __str__(self):
         ref_art = self.articulo.codigo_interno if self.articulo else 'SISTEMA'

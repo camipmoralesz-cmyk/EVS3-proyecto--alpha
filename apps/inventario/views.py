@@ -4,8 +4,6 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.core.paginator import Paginator
-from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
@@ -15,7 +13,7 @@ from apps.entidades.models import Proveedor
 from apps.finanzas.utils import bloquear_escrituras_finanzas
 from apps.usuarios.roles import rol_requerido
 from .forms import DocumentoEntradaForm
-from .models import DocumentoEntrada, MovimientoInventario
+from .models import DocumentoEntrada
 from .permisos import bodega_requerida, lectura_cardex, lectura_inventario
 from .services import confirmar_documento_borrador, registrar_documento_entrada
 
@@ -102,12 +100,6 @@ def registro_documento(request):
         messages.error(request, f"Error al registrar documento: {error_msg}")
 
     form = DocumentoEntradaForm()
-    proveedores = Proveedor.objects.filter(
-        activo=True,
-        tipo=Proveedor.Tipo.PROVEEDOR,
-    )
-    articulos = Articulo.objects.all().order_by('nombre')
-    
     return render(request, 'inventario/registro_documento.html', {
         'form': form,
         'proveedores': form.fields['proveedor'].queryset,
@@ -159,22 +151,9 @@ def inventario_stock(request):
 
 @lectura_cardex
 def historial_movimientos(request):
-    """Cardex: historial de movimientos. SOLO LECTURA (no existe ninguna acción de editar ni borrar)."""
-    movimientos = MovimientoInventario.objects.select_related('articulo', 'documento', 'usuario', 'obra')
-    q = request.GET.get('q', '').strip()
-    tipo = request.GET.get('tipo', '').strip()
-    if q:
-        movimientos = movimientos.filter(
-            Q(articulo__nombre__icontains=q) | Q(articulo__codigo_interno__icontains=q)
-            | Q(referencia__icontains=q) | Q(usuario__username__icontains=q)
-        )
-    if tipo in dict(MovimientoInventario.TIPOS_MOVIMIENTO):
-        movimientos = movimientos.filter(tipo_movimiento=tipo)
-    pagina = Paginator(movimientos, 50).get_page(request.GET.get('page'))
-    return render(request, 'inventario/movimientos.html', {
-        'movimientos': pagina, 'q': q, 'tipo_seleccionado': tipo,
-        'tipos': MovimientoInventario.TIPOS_MOVIMIENTO,
-    })
+    """Kardex de Bodega y Finanzas: es la misma pantalla única de /auditoria/ (solo lectura)."""
+    from apps.auditoria.views import CardexListView
+    return CardexListView.as_view()(request)
 
 
 @lectura_inventario

@@ -618,3 +618,81 @@ def confirmar_documento_borrador(documento_id, usuario):
     documento.save(update_fields=['estado'])
     return documento
 
+
+# ---------------------------------------------------------------------------
+# ANULACIÓN CONTROLADA (CONTRA-ASIENTO, HU-12)
+# El Kardex (MovimientoInventario) es el único registro: el Cardex de Auditoría es otra
+# vista de la misma tabla. El contra-asiento apunta a su original con movimiento_anulado.
+# ---------------------------------------------------------------------------
+PREFIJO_ANULACION = "ANULADO ID#"
+
+
+class AnulacionError(ValidationError):
+    """Error de negocio al anular. 'codigo' permite a cada vista conservar su mensaje."""
+
+    def __init__(self, mensaje, codigo, **datos):
+        super().__init__(mensaje, code=codigo)
+        self.codigo = codigo
+        self.datos = datos
+
+
+def movimiento_ya_anulado(mov):
+    """True si el movimiento ya tiene su contra-asiento."""
+    return M.objects.filter(movimiento_anulado=mov).exists()
+
+
+@transaction.atomic
+def anular_movimiento_inventario(mov_id, usuario, motivo):
+    """Genera el contra-asiento de un movimiento: revierte el stock, deja la ANULACION en el
+    Kardex enlazada al original (movimiento_anulado) y registra la bitácora."""
+    from apps.auditoria.middleware import get_current_ip
+    from apps.auditoria.models import BitacoraAuditoria
+
+    motivo = (motivo or '').strip()
+    if len(motivo) < MIN_JUSTIFICACION:
+        raise AnulacionError(f"Indique el motivo de la anulación (mínimo {MIN_JUSTIFICACION} caracteres).", 'motivo')
+
+    mov = M.objects.select_for_update().select_related('articulo', 'documento').filter(pk=mov_id).first()
+    if mov is None:
+        raise AnulacionError("El movimiento no existe.", 'no_existe')
+    if mov.articulo_id is None:
+        raise AnulacionError("Los registros de ingreso/salida de personal no mueven stock.", 'sin_articulo')
+    if mov.tipo_movimiento == M.TIPO_ANULACION:
+        raise AnulacionError("Este registro ya corresponde a un contra-asiento de anulación.", 'es_anulacion')
+    if movimiento_ya_anulado(mov):
+        raise AnulacionError(f"El movimiento #{mov.pk} ya fue anulado anteriormente.", 'ya_anulado')
+
+    articulo = Articulo.objects.select_for_update().get(pk=mov.articulo_id)
+    stock_anterior = articulo.stock_actual
+    if mov.suma_stock:
+        # El original sumó stock: la reversa resta y no puede dejar saldo negativo
+        nuevo_stock = stock_anterior - mov.cantidad
+        direccion = 'REVERSA ENTRADA'
+    else:
+        nuevo_stock = stock_anterior + mov.cantidad
+        direccion = 'REVERSA SALIDA'
+    if nuevo_stock < 0:
+        raise AnulacionError(
+            f"No se puede anular el movimiento #{mov.pk}: el stock de \"{articulo.nombre}\" quedaría negativo "
+            f"({nuevo_stock}).", 'stock_negativo', nuevo_stock=nuevo_stock, articulo=articulo.nombre)
+
+    articulo.stock_actual = nuevo_stock
+    articulo.save(update_fields=['stock_actual'])
+
+    ahora_str = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M')
+    detalle = (f"{PREFIJO_ANULACION}{mov.pk} ({direccion}) | Por: {usuario.username} | "
+               f"Fecha: {ahora_str} | Motivo: {motivo}")
+    contra = M.objects.create(
+        articulo=articulo, documento=mov.documento, tipo_movimiento=M.TIPO_ANULACION,
+        cantidad=mov.cantidad, stock_anterior=stock_anterior, stock_posterior=nuevo_stock,
+        costo_unitario=mov.costo_unitario or articulo.pmp_costo_actual or 0,
+        usuario=usuario, referencia=detalle[:255], obra=mov.obra, justificacion=motivo,
+        movimiento_anulado=mov,
+    )
+    BitacoraAuditoria.objects.create(
+        usuario=usuario, ip_origen=get_current_ip(), modulo='Inventario', accion='ANULAR',
+        modelo_afectado='MovimientoInventario', objeto_id=str(mov.pk),
+        descripcion=(f"Contra-asiento #{contra.pk} generado sobre el movimiento #{mov.pk} ({articulo.nombre}): "
+                     f"stock {stock_anterior} -> {nuevo_stock}. Motivo: {motivo}"),
+    )
+    return contra

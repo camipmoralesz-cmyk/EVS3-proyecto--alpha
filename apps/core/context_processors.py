@@ -34,7 +34,7 @@ SECCIONES_POR_APP = {
     ('finanzas', 'obra_crear'): 'finanzas_presupuestos',
     ('finanzas', 'presupuesto_editar'): 'finanzas_presupuestos',
     ('finanzas', 'presupuesto_eliminar'): 'finanzas_presupuestos',
-    ('auditoria', 'lista_cardex'): 'cardex_auditoria',
+    ('auditoria', 'lista_cardex'): 'auditoria',  # misma pantalla que core:auditoria_kardex
     ('auditoria', 'lista_bitacora'): 'bitacora',
     ('auditoria', 'logs_acceso'): 'accesos',
 }

@@ -589,8 +589,6 @@ class ChecklistGeneralTests(BaseBodega):
         self.assertEqual(self.stock(), Decimal('10'))
 
     def test_vista_bodega_registra_y_crea_asientos_en_cardex(self):
-        from apps.auditoria.models import MovimientoCardex
-        cardex_antes = MovimientoCardex.objects.count()
         self.client.force_login(self.bodeguero)
         r = self.client.post(reverse('checklist_inventario_bodega'), {
             'revisado': [str(self.art.pk), str(self.art2.pk)],
@@ -602,7 +600,12 @@ class ChecklistGeneralTests(BaseBodega):
         self.assertEqual(self.stock(), Decimal('9'))
         sesion = SesionInventario.objects.get(sector=SECTOR_CHECKLIST_GENERAL)
         self.assertEqual(M.objects.filter(sesion_inventario=sesion, tipo_movimiento=M.TIPO_AJUSTE_NEG).count(), 1)
-        self.assertEqual(MovimientoCardex.objects.count(), cardex_antes + 1)
+        # El Cardex de Auditoría lee el Kardex: el ajuste aparece ahí sin copias
+        ajuste = M.objects.get(sesion_inventario=sesion)
+        self.client.force_login(self.gerente)
+        html = self.client.get(reverse('auditoria:lista_cardex')).content.decode()
+        self.assertIn(f'#{ajuste.pk}', html)
+        self.assertIn('-1', html)
 
     def test_permisos_de_la_vista(self):
         url = reverse('checklist_inventario_bodega')

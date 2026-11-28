@@ -2,19 +2,18 @@ from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User, Group
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.contrib import messages
-from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import F
 from django.apps import apps
 from django.utils import timezone
 
 from apps.catalogo.models import Articulo
 from apps.inventario.models import DocumentoEntrada, MovimientoInventario, SesionInventario, SolicitudDespacho
+from apps.inventario.services import MIN_JUSTIFICACION, AnulacionError, anular_movimiento_inventario
 from apps.obras.models import Obra
-from apps.usuarios.roles import rol_requerido, tiene_rol
+from apps.usuarios.roles import rol_requerido
 
 from .models import ActaAprobacionInventario
 
@@ -200,123 +199,50 @@ def panel_alertas_stock(request):
 # ==========================================
 # 3. AUDITORÍA KARDEX Y CONTRA-ASIENTO (HU-12)
 # ==========================================
-@rol_requerido('gerencia', 'auditor')
-def auditoria_kardex(request):
-    """Kardex global. El auditor lo consulta en solo lectura: no anula ni registra;
-    anular_movimiento_kardex sigue exigiendo Gerencia en el servidor."""
-    q = request.GET.get('q', '').strip()
-    tipo = request.GET.get('tipo', '').strip()
-
-    # Consulta global sin filtros restrictivos por usuario/estado para que
-    # el Administrador General visualice todos los movimientos y accesos.
-    movimientos = (
-        MovimientoInventario.objects
-        .select_related('articulo', 'usuario', 'documento')
-        .prefetch_related('usuario__groups')
-        .all()
-        .order_by('-fecha', '-id')
-    )
-
-    if q:
-        movimientos = movimientos.filter(
-            Q(articulo__nombre__icontains=q) |
-            Q(articulo__codigo_interno__icontains=q) |
-            Q(usuario__username__icontains=q) |
-            Q(usuario__first_name__icontains=q) |
-            Q(usuario__last_name__icontains=q) |
-            Q(referencia__icontains=q) |
-            Q(tipo_movimiento__icontains=q)
-        )
-
-    if tipo:
-        movimientos = movimientos.filter(tipo_movimiento=tipo)
-
-    return render(request, 'core/auditoria_kardex.html', {
-        'movimientos': movimientos,
-        'q': q,
-        'tipo': tipo,
-        'tipos_movimiento': MovimientoInventario.TIPOS_MOVIMIENTO,
-        'puede_anular': tiene_rol(request.user, 'gerencia'),
-    })
+def auditoria_kardex(request, *args, **kwargs):
+    """Pantalla única del Kardex (la misma de /auditoria/cardex/): filtros, exportaciones y,
+    solo para Gerencia, el contra-asiento. Los permisos los aplica la vista de auditoría."""
+    from apps.auditoria.views import CardexListView
+    return CardexListView.as_view()(request, *args, **kwargs)
 
 
 @rol_requerido('gerencia')
-@transaction.atomic
 def anular_movimiento_kardex(request, mov_id):
-    mov_original = get_object_or_404(
-        MovimientoInventario.objects.select_for_update().select_related('articulo', 'documento'),
-        pk=mov_id,
-    )
-
-    if request.method == 'POST':
-        motivo = request.POST.get('motivo', '').strip()
-        if not motivo:
-            messages.error(request, 'El motivo de ajuste es obligatorio para generar un contra-asiento.')
-            return redirect('core:auditoria_kardex')
-
-        if mov_original.articulo is None:
-            messages.warning(request, 'Los registros de ingreso/salida de personal son inmutables y no requieren contra-asiento de stock.')
-            return redirect('core:auditoria_kardex')
-
-        if mov_original.tipo_movimiento == MovimientoInventario.TIPO_ANULACION:
-            messages.warning(request, 'Este registro ya corresponde a un contra-asiento de anulación.')
-            return redirect('core:auditoria_kardex')
-
-        # Un movimiento se anula una sola vez: se busca su contra-asiento por la referencia
-        ya_anulado = MovimientoInventario.objects.filter(
-            tipo_movimiento=MovimientoInventario.TIPO_ANULACION,
-            referencia__startswith=f"ANULADO ID#{mov_original.id} ",
-        ).exists()
-        if ya_anulado:
-            messages.warning(request, f'El movimiento #{mov_original.id} ya fue anulado anteriormente.')
-            return redirect('core:auditoria_kardex')
-
-        articulo = Articulo.objects.select_for_update().get(pk=mov_original.articulo_id)
-        cantidad = mov_original.cantidad
-        stock_anterior = articulo.stock_actual
-
-        if mov_original.suma_stock:
-            # El original sumó stock: la reversa resta y no puede dejar saldo negativo
-            nuevo_stock = stock_anterior - cantidad
-            if nuevo_stock < 0:
-                messages.error(
-                    request,
-                    f'No se puede anular el movimiento #{mov_original.id}: el stock de "{articulo.nombre}" quedaría negativo.'
-                )
-                return redirect('core:auditoria_kardex')
-            direccion = 'REVERSA ENTRADA'
-        else:
-            nuevo_stock = stock_anterior + cantidad
-            direccion = 'REVERSA SALIDA'
-
-        articulo.stock_actual = nuevo_stock
-        articulo.save(update_fields=['stock_actual'])
-
-        ahora_str = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M')
-        bitacora_detalle = (
-            f"ANULADO ID#{mov_original.id} ({direccion}) | Por: {request.user.username} | "
-            f"Fecha: {ahora_str} | Motivo: {motivo}"
-        )
-
-        nuevo_mov = MovimientoInventario.objects.create(
-            articulo=articulo,
-            documento=mov_original.documento,
-            tipo_movimiento=MovimientoInventario.TIPO_ANULACION,
-            cantidad=cantidad,
-            stock_anterior=stock_anterior,
-            stock_posterior=nuevo_stock,
-            costo_unitario=mov_original.costo_unitario or articulo.pmp_costo_actual or 0,
-            usuario=request.user,
-            referencia=bitacora_detalle[:255],
-        )
-
-        messages.success(
-            request,
-            f'Contra-asiento #{nuevo_mov.id} registrado en bitácora ({bitacora_detalle}). '
-            f'Stock actualizado: {stock_anterior} → {nuevo_stock}.'
-        )
+    """Contra-asiento desde el Kardex. La lógica vive en anular_movimiento_inventario(),
+    la misma que usa el Cardex de Auditoría."""
+    mov = get_object_or_404(MovimientoInventario.objects.select_related('articulo'), pk=mov_id)
+    if request.method != 'POST':
         return redirect('core:auditoria_kardex')
 
+    motivo = request.POST.get('motivo', '').strip()
+    if len(motivo) < MIN_JUSTIFICACION:
+        messages.error(request, f'Debe ingresar un motivo de al menos {MIN_JUSTIFICACION} caracteres para generar un contra-asiento.')
+        return redirect('core:auditoria_kardex')
+
+    try:
+        contra = anular_movimiento_inventario(mov_id, request.user, motivo)
+    except AnulacionError as e:
+        avisos = {
+            'sin_articulo': 'Los registros de ingreso/salida de personal son inmutables y no requieren contra-asiento de stock.',
+            'es_anulacion': 'Este registro ya corresponde a un contra-asiento de anulación.',
+            'ya_anulado': f'El movimiento #{mov_id} ya fue anulado anteriormente.',
+        }
+        if e.codigo in avisos:
+            messages.warning(request, avisos[e.codigo])
+        elif e.codigo == 'stock_negativo':
+            messages.error(
+                request,
+                f'No se puede anular el movimiento #{mov_id}: el stock de "{mov.articulo.nombre}" quedaría negativo.'
+            )
+        else:
+            messages.error(request, ' '.join(e.messages))
+        return redirect('core:auditoria_kardex')
+
+    messages.success(
+        request,
+        f'Contra-asiento #{contra.id} registrado en bitácora ({contra.referencia}). '
+        f'Stock actualizado: {contra.stock_anterior} → {contra.stock_posterior}.'
+    )
     return redirect('core:auditoria_kardex')
 
 

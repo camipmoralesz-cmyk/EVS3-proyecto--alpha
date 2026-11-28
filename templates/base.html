@@ -187,7 +187,7 @@
             </li>
             <li class="nav-item">
                 <a href="{% url 'core:auditoria_kardex' %}" class="nav-link {% if seccion_activa == 'auditoria' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-shield-lock me-2"></i> Auditoría y Kardex
+                    <i class="bi bi-shield-lock me-2"></i> Kardex
                 </a>
             </li>
             <li class="nav-item">
@@ -274,8 +274,8 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{% url 'historial_movimientos' %}" class="nav-link {% if seccion_activa == 'kardex' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-journal-check me-2"></i> Kardex (solo lectura)
+                <a href="{% url 'core:auditoria_kardex' %}" class="nav-link {% if seccion_activa == 'auditoria' or seccion_activa == 'kardex' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-shield-lock me-2"></i> Kardex
                 </a>
             </li>
             <li class="nav-item">
@@ -324,8 +324,8 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{% url 'historial_movimientos' %}" class="nav-link {% if seccion_activa == 'kardex' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-journal-check me-2"></i> Kardex (solo lectura)
+                <a href="{% url 'core:auditoria_kardex' %}" class="nav-link {% if seccion_activa == 'auditoria' or seccion_activa == 'kardex' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-shield-lock me-2"></i> Kardex
                 </a>
             </li>
 
@@ -399,8 +399,8 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{% url 'auditoria:lista_cardex' %}" class="nav-link {% if seccion_activa == 'cardex_auditoria' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-shield-check me-2"></i> Cardex Auditoría
+                <a href="{% url 'core:auditoria_kardex' %}" class="nav-link {% if seccion_activa == 'auditoria' %}active{% else %}text-light{% endif %}">
+                    <i class="bi bi-shield-lock me-2"></i> Kardex
                 </a>
             </li>
 
@@ -411,11 +411,6 @@
             <li class="nav-item">
                 <a href="{% url 'core:auditoria_kardex' %}" class="nav-link {% if seccion_activa == 'auditoria' %}active{% else %}text-light{% endif %}">
                     <i class="bi bi-shield-lock me-2"></i> Kardex
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="{% url 'auditoria:lista_cardex' %}" class="nav-link {% if seccion_activa == 'cardex_auditoria' %}active{% else %}text-light{% endif %}">
-                    <i class="bi bi-shield-check me-2"></i> Cardex Auditoría
                 </a>
             </li>
             <li class="nav-item">

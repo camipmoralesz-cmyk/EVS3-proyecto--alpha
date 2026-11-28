@@ -5,73 +5,15 @@ from django.contrib.auth.signals import user_logged_in, user_login_failed
 from django.dispatch import receiver
 from django.forms.models import model_to_dict
 
-from apps.inventario.models import MovimientoInventario
-from .models import MovimientoCardex, BitacoraAuditoria, LogAcceso
+from .models import BitacoraAuditoria, LogAcceso
 from .middleware import get_current_user, get_current_ip
 
 
 # ==============================================================================
-# 1. SINCRONIZACIÓN AUTOMÁTICA: INVENTARIO -> CARDEX INMUTABLE (RF06 / HU-12)
+# 1. CARDEX INMUTABLE (RF06 / HU-12)
 # ==============================================================================
-# Tipos de MovimientoInventario -> choices de MovimientoCardex.
-# 'SALIDA' se resuelve aparte: NC = devolución a proveedor, si no egreso.
-MAPA_TIPOS_CARDEX = {
-    'ENTRADA': 'INGRESO',
-    'EGRESO_OBRA': 'EGRESO',
-    'MERMA': 'MERMA',
-    'DEVOLUCION_OBRA': 'DEVOLUCION_FAENA',
-    'DEVOLUCION_PROVEEDOR': 'DEVOLUCION_PROVEEDOR',
-    'USO_INTERNO': 'USO_INTERNO',
-    'AJUSTE_POS': 'AJUSTE_INVENTARIO',
-    'AJUSTE_NEG': 'AJUSTE_INVENTARIO',
-    'AJUSTE': 'AJUSTE_INVENTARIO',
-    'ANULACION': 'ANULACION',
-}
-
-@receiver(post_save, sender=MovimientoInventario)
-def sincronizar_movimiento_a_cardex(sender, instance, created, **kwargs):
-    """
-    Cada vez que Inventario registra un movimiento operativo, se asienta
-    automáticamente una copia inmutable en MovimientoCardex.
-    """
-    if not created:
-        return
-
-    # Eventos de sesión (INGRESO_SISTEMA / SALIDA_SISTEMA) no mueven stock: no van al Cardex
-    if instance.articulo_id is None:
-        return
-
-    # Evitar duplicados si el movimiento nació de una anulación en Auditoría
-    if instance.referencia and instance.referencia.startswith("ANULACION_AUDITORIA:"):
-        return
-
-    es_nota_credito = bool(instance.documento and instance.documento.es_nota_credito)
-    if instance.tipo_movimiento == 'SALIDA':
-        tipo_cardex = 'DEVOLUCION_PROVEEDOR' if es_nota_credito else 'EGRESO'
-    else:
-        tipo_cardex = MAPA_TIPOS_CARDEX.get(instance.tipo_movimiento, 'AJUSTE_INVENTARIO')
-
-    # Entradas positivas y salidas negativas para mantener la suma algebraica del saldo
-    cantidad_signed = abs(instance.cantidad)
-    if instance.stock_posterior < instance.stock_anterior:
-        cantidad_signed = -cantidad_signed
-
-    doc_ref = ""
-    if instance.documento:
-        doc_ref = f"{instance.documento.get_tipo_documento_display()} N° {instance.documento.numero_documento}"
-
-    MovimientoCardex.objects.create(
-        articulo=instance.articulo,
-        tipo_movimiento=tipo_cardex,
-        cantidad=cantidad_signed,
-        saldo_resultante=instance.stock_posterior,
-        valor_unitario=instance.costo_unitario,
-        usuario=instance.usuario or get_current_user(),
-        obra=instance.obra,
-        documento_referencia=doc_ref,
-        justificacion=instance.referencia or f"Movimiento automático desde Inventario ({doc_ref or 'Sin documento'})",
-        es_reversa=False
-    )
+# El Cardex de Auditoría lee directamente MovimientoInventario (un solo registro
+# append-only). Ya no se copia cada movimiento a una tabla aparte.
 
 
 # ==============================================================================
