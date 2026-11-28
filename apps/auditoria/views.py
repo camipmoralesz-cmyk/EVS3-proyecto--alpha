@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 import openpyxl
 from reportlab.lib.pagesizes import letter, landscape
@@ -56,6 +57,14 @@ class SoloAdminGeneralMixin(LoginRequiredMixin, UserPassesTestMixin):
 
 # --- VISTAS PRINCIPALES ---
 
+def _fecha_valida(valor):
+    """Fecha AAAA-MM-DD del filtro, o None si viene vacía o mal formada."""
+    try:
+        return parse_date(valor) if valor else None
+    except ValueError:
+        return None
+
+
 def _filtrar_cardex(request):
     """El Cardex es una vista del Kardex (MovimientoInventario): una sola tabla append-only.
     Se excluyen los registros sin artículo (accesos antiguos), que no mueven stock."""
@@ -69,10 +78,13 @@ def _filtrar_cardex(request):
     usuario = request.GET.get('usuario')
     documento = request.GET.get('documento')
 
-    if articulo_id:
+    # Valores manipulados en la URL se ignoran en vez de provocar un error 500.
+    if articulo_id and articulo_id.isdigit():
         qs = qs.filter(articulo_id=articulo_id)
     if tipo:
         qs = qs.filter(tipo_movimiento=tipo)
+    fecha_inicio = _fecha_valida(fecha_inicio)
+    fecha_fin = _fecha_valida(fecha_fin)
     if fecha_inicio:
         qs = qs.filter(fecha__date__gte=fecha_inicio)
     if fecha_fin:
