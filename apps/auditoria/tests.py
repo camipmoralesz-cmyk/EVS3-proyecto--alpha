@@ -201,3 +201,13 @@ class AnulacionUnificadaTests(TestCase):
                 self.assertEqual(r.status_code, 200)
         self.assertEqual(BitacoraAuditoria.objects.filter(accion='EXPORTAR',
                                                           modelo_afectado='MovimientoInventario').count(), 2)
+
+    def test_filtros_manipulados_no_rompen_el_kardex(self):
+        # Valores inválidos en la URL se ignoran: la pantalla y los exportes responden 200.
+        for params in ({'articulo': 'abc'}, {'fecha_inicio': 'abc'}, {'fecha_fin': '2026-13-45'}):
+            for nombre in ('auditoria:lista_cardex', 'auditoria:exportar_cardex_excel',
+                           'auditoria:exportar_cardex_pdf'):
+                with self.subTest(params=params, vista=nombre):
+                    self.assertEqual(self.client.get(reverse(nombre), params).status_code, 200)
+        r = self.client.get(reverse('auditoria:lista_cardex'), {'fecha_inicio': 'abc'})
+        self.assertIn(self.entrada, list(r.context['movimientos']))
