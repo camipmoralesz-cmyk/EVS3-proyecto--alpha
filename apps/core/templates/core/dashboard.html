@@ -137,7 +137,7 @@
                         </li>
                         <li class="list-group-item bg-transparent text-light d-flex justify-content-between align-items-center px-0 border-secondary border-opacity-25">
                             <span>Mermas del mes ({{ mermas_mes|default:"0" }} eventos)</span>
-                            <span class="badge bg-danger rounded-pill">-${{ mermas_valor_mes|default:"0" }}</span>
+                            <span class="badge bg-danger rounded-pill">{% if mermas_valor_mes %}-{% endif %}${{ mermas_valor_mes|default:"0" }}</span>
                         </li>
                     </ul>
 
@@ -214,7 +214,7 @@
             <div class="row g-3 mb-3 text-center">
                 <div class="col-12 col-md-4">
                     <div class="text-secondary small">Valor Perdido en Mermas ($ CLP)</div>
-                    <div class="fs-3 fw-bold text-danger font-monospace">-${{ mermas_valor_mes|default:"0" }}</div>
+                    <div class="fs-3 fw-bold text-danger font-monospace">{% if mermas_valor_mes %}-{% endif %}${{ mermas_valor_mes|default:"0" }}</div>
                 </div>
                 <div class="col-6 col-md-4">
                     <div class="text-secondary small">Unidades Mermadas</div>
@@ -245,7 +245,7 @@
                             <td class="fw-semibold">{{ m.articulo.nombre }}</td>
                             <td class="small">{{ m.obra.nombre|default:"Bodega central" }}</td>
                             <td class="text-center">{{ m.cantidad|floatformat:"-2" }}</td>
-                            <td class="text-end text-danger font-monospace">-${{ m.valor }}</td>
+                            <td class="text-end text-danger font-monospace">{% if m.valor %}-{% endif %}${{ m.valor }}</td>
                             <td class="small text-info">{{ m.usuario.username|default:"Sistema" }}</td>
                             <td class="small">{{ m.justificacion|default:"-"|truncatechars:60 }}</td>
                         </tr>
